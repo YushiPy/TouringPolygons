@@ -3,6 +3,7 @@
 #include "tpp/convex/solution.h"
 #include "tpp/convex/detail/closed_regions.h"
 #include "tpp/convex/detail/convex_contacts.h"
+#include "binary_certificate.h"
 
 #include <boost/multiprecision/cpp_int.hpp>
 #ifdef TPP_EXPERIMENT_NATIVE_DOUBLE
@@ -91,12 +92,20 @@ struct Query {
     // a backwards extension of a map ray. They do not change the requested
     // one-sided limit. Reflections must carry the complete symbolic query.
     Point tie1{1,0}, tie2{0,1};
+    // The point lies exactly on the supporting line of original edge on_edge
+    // of the polygon of map on_map: a split vertex where its own edge crosses
+    // that edge. Its coordinates are rounded in binary64, which would put it
+    // on either side; tests against that line take the constant as zero.
+    // Reflections and the target carry no such line.
+    static constexpr size_t none=size_t(-1);
+    size_t on_map=none, on_edge=0;
     bool operator==(const Query &) const = default;
 };
 
 // Exact sign at q + epsilon*d, for positive infinitesimal epsilon.
-int cross_sign(const Point &axis, const Query &q, const Point &origin, bool break_ties=true) {
-    const int constant = offset_cross_sign(axis,q.point,origin);
+// on_line: q.point is known to lie on the line through origin along axis.
+int cross_sign(const Point &axis, const Query &q, const Point &origin, bool break_ties=true, bool on_line=false) {
+    const int constant = on_line ? 0 : offset_cross_sign(axis,q.point,origin);
     if(constant) return constant;
     const int first=cross_sign(axis,q.side);
     if(first || !break_ties) return first;
@@ -145,6 +154,9 @@ struct Vertex {
     // its own source or the path arrives along the segment, toward it.
     bool full_turn = false;
     std::optional<long double> prefix_length;
+    // (polygon, edge) of an earlier map whose supporting line holds the
+    // vertex exactly, when it was found as a crossing with that edge.
+    std::optional<std::pair<size_t,size_t>> on_line;
 };
 struct Bounds {
     double min_x, max_x, min_y, max_y;
@@ -161,6 +173,8 @@ struct Map {
     // Union of edge_bounds: an edge box disjoint from it misses every edge box.
     std::optional<Bounds> bounds;
     std::vector<Point> membership_corners;
+    // Index in `original` of each membership corner.
+    std::vector<size_t> corner_index;
     std::vector<Vertex> vertices;
     size_t segment_end=0;
     struct CachedQuery { Query query; Point source; const void *trail; };
@@ -197,9 +211,24 @@ class DirectionalMaps {
     // computed once per pair of maps (Tan and Jiang's construction only).
     std::vector<std::vector<std::vector<EdgeStatus>>> statuses;
 
-    static bool inside(const Query &q,const std::vector<Point> &polygon) {
+    // The side of q with respect to the line from v1 to v2 (input points): the
+    // exact orientation of the three points, not the sign against a rounded
+    // v2-v1; a zero falls to the symbolic tie-breaks of cross_sign.
+    static int line_side(const Point &v1,const Point &v2,const Query &q,bool break_ties=true,bool on_line=false) {
+        const int constant=on_line ? 0 : input_orientation(v1,v2,q.point);
+        if(constant) return constant;
+        return cross_sign(v2-v1,q,v1,break_ties,true);
+    }
+    // on_side(a,b): q lies on the line from polygon[a] to polygon[b], a side
+    // of the polygon (Query::on_map).
+    template<class OnSide=std::nullptr_t>
+    static bool inside(const Query &q,const std::vector<Point> &polygon,const OnSide &on_side=nullptr) {
+        constexpr bool known=!std::is_same_v<OnSide,std::nullptr_t>;
+        auto side=[&](size_t a,size_t b) {if constexpr(known) return on_side(a,b); else return false;};
         if(polygon.size()<=2) {
-            if(!closed_region_contains(q.point,polygon)) return false;
+            // A split vertex on a segment lies on it (split_boundaries checks
+            // the parameter on the segment).
+            if(!(polygon.size()==2 && side(0,1)) && !closed_region_contains(q.point,polygon)) return false;
             if(q.side.zero()) return true;
             if(polygon.size()==1) return false;
             const Point edge=polygon[1]-polygon[0];
@@ -209,15 +238,49 @@ class DirectionalMaps {
                 (position!=edge.dot(edge) || direction<=0);
         }
         const auto &origin=polygon.front();
-        if(cross_sign(polygon[1]-origin,q,origin,false)<0 ||
-           cross_sign(polygon.back()-origin,q,origin,false)>0) return false;
+        const size_t last=polygon.size()-1;
+        if(line_side(origin,polygon[1],q,false,side(0,1))<0 ||
+           line_side(origin,polygon.back(),q,false,side(last,0))>0) return false;
         size_t left=1,right=polygon.size()-1;
         while(left+1<right) {
             const size_t mid=left+(right-left)/2;
-            if(cross_sign(polygon[mid]-origin,q,origin,false)>=0) left=mid;
+            if(line_side(origin,polygon[mid],q,false)>=0) left=mid;
             else right=mid;
         }
-        return cross_sign(polygon[right]-polygon[left],q,polygon[left],false)>=0;
+        return line_side(polygon[left],polygon[right],q,false,side(left,right))>=0;
+    }
+
+    // Whether q lies on the side of the polygon of map h from membership
+    // corner a to corner b (cyclically next), by the edge q.on_edge.
+    bool on_corner_side(const Query &q,size_t h,size_t a,size_t b) const {
+        if(q.on_map!=h) return false;
+        const auto &map=maps[h];
+        const size_t n=map.original.size();
+        const size_t from=map.corner_index[a], to=map.corner_index[b];
+        return (q.on_edge+n-from)%n < ((to+n-from)%n ? (to+n-from)%n : n);
+    }
+    // The input ends of the original edge that holds vertices a and b of map h,
+    // if one does: a chord between two split points of that edge is its line.
+    std::pair<const Point*,const Point*> edge_line(size_t h,size_t a,size_t b) const {
+        const auto &vertices=maps[h].vertices;const auto &original=maps[h].original;
+        const size_t n=original.size();
+        if(n<2) return {nullptr,nullptr};
+        const size_t k=vertices[a].original_edge;
+        const auto &w=vertices[b];
+        if(w.original_edge==k || (w.original_edge==(k+1)%n && w.edge_parameter==0))
+            return {&original[k],&original[(k+1)%n]};
+        return {nullptr,nullptr};
+    }
+    // Whether q lies on the line of the pseudo-edges of map h from vertex a to
+    // vertex b: both lie on the closed original edge q.on_edge.
+    bool on_chord(const Query &q,size_t h,size_t a,size_t b) const {
+        if(q.on_map!=h) return false;
+        const auto &vertices=maps[h].vertices;
+        const size_t n=maps[h].original.size(), k=q.on_edge;
+        auto on_edge=[&](const Vertex &v) {
+            return v.original_edge==k || (v.original_edge==(k+1)%n && v.edge_parameter==0);
+        };
+        return on_edge(vertices[a]) && on_edge(vertices[b]);
     }
 
     // single: r1 and r2 are known to be the same ray (Vertex::single_ray);
@@ -232,20 +295,25 @@ class DirectionalMaps {
 
     // The existing binary locator's chord predicate, evaluated on symbolic
     // queries. Rays themselves use the corrected incident limits (Dror Claim 1).
+    // on_line: q lies on the line from v1 to v2 (on_chord).
     static bool in_edge_plus(const Query &q,const Point &v1,const Point &v2,
-                             const Point &r1,const Point &r2) {
+                             const Point &r1,const Point &r2,bool on_line=false,
+                             const Point *la=nullptr,const Point *lb=nullptr) {
         if(v1==v2) return in_cone(q,v1,r1,r2);
         const Point dv=v2-v1;
         if(same_direction(r1,dv) || same_direction(r2,-dv)) return false;
+        // A chord on an original edge is the line of its input ends, so that
+        // two rounded split points do not tilt it.
+        auto chord=[&](const Point &) {return la ? line_side(*la,*lb,q,true,on_line) : line_side(v1,v2,q,true,on_line);};
         if(cross_sign(dv,r1)<0) {
             if(cross_sign(dv,r2)<0)
                 return cross_sign(r1,q,v1)>=0 && cross_sign(r2,q,v2)<=0
-                    && cross_sign(dv,q,v1)<=0;
-            return cross_sign(dv,q,v1)<0 ? cross_sign(r1,q,v1)>=0 : cross_sign(r2,q,v2)<=0;
+                    && chord(v1)<=0;
+            return chord(v1)<0 ? cross_sign(r1,q,v1)>=0 : cross_sign(r2,q,v2)<=0;
         }
         if(cross_sign(dv,r2)<0)
-            return cross_sign(dv,q,v2)<0 ? cross_sign(r2,q,v2)<=0 : cross_sign(r1,q,v1)>=0;
-        return cross_sign(r1,q,v1)>=0 || cross_sign(r2,q,v2)<=0 || cross_sign(dv,q,v1)<=0;
+            return chord(v2)<0 ? cross_sign(r2,q,v2)<=0 : cross_sign(r1,q,v1)>=0;
+        return cross_sign(r1,q,v1)>=0 || cross_sign(r2,q,v2)<=0 || chord(v1)<=0;
     }
 
     // The queries of the two sides of vertex j of map i: the vertex, moved
@@ -254,7 +322,18 @@ class DirectionalMaps {
         const auto &vertices=maps[i].vertices;
         const size_t n=vertices.size();
         const Point &v=vertices[j].point;
-        return {Query{v,vertices[(j+n-1)%n].point-v},Query{v,vertices[(j+1)%n].point-v}};
+        Query before{v,vertices[(j+n-1)%n].point-v}, after{v,vertices[(j+1)%n].point-v};
+        if(const auto &line=vertices[j].on_line)
+            before.on_map=after.on_map=line->first, before.on_edge=after.on_edge=line->second;
+        return {before,after};
+    }
+
+    // The query of a point with no side; at a split vertex, it carries the
+    // line the vertex lies on (Query::on_map).
+    static Query point_query(const Point &p,const Vertex *at=nullptr) {
+        Query q{p,{}};
+        if(at && at->on_line) q.on_map=at->on_line->first, q.on_edge=at->on_line->second;
+        return q;
     }
 
     void build_vertex(size_t i,size_t j) {
@@ -280,15 +359,28 @@ class DirectionalMaps {
             reflects=cross_sign(edge,incoming)>0;
             return reflects ? reflect_direction(incoming,edge) : incoming;
         };
+        // Reflections use the original edges, differences of input points: a
+        // split vertex inside an original edge (v.edge_parameter != 0) has the
+        // same edge on both sides, while v-before and after-v, from rounded
+        // split points, would differ in binary64.
+        const auto &original=maps[i].original;
+        const size_t m=original.size(), e=v.original_edge;
+        const bool corner=m<2 || v.edge_parameter==0;
+        const Point after_edge=m<2 ? after-v.point : original[(e+1)%m]-original[e];
+        const Point before_edge=m<2 ? v.point-before : corner ? original[e]-original[(e+m-1)%m] : after_edge;
         bool before_at_source=false,after_at_source=false;
-        v.before_ray=outgoing(before_source,before-v.point,v.point-before,v.before_reflects,before_at_source);
-        v.after_ray=outgoing(after_source,after-v.point,after-v.point,v.after_reflects,after_at_source);
+        v.before_ray=outgoing(before_source,before-v.point,before_edge,v.before_reflects,before_at_source);
+        v.after_ray=outgoing(after_source,after-v.point,after_edge,v.after_reflects,after_at_source);
         // Same source and no reflection: both rays are v minus that source.
         // Most vertices of intersecting maps are of this kind; recognizing
         // them spares the cone test an exact zero (filtered arithmetic would
         // otherwise evaluate it in rationals at every location query).
-        if(before_source.second==after_source.second && !v.before_reflects && !v.after_reflects
-           && !before_at_source && !after_at_source) {
+        // Inside an original edge, both sides reflecting from the same source
+        // also give one ray: the same reflection in the same edge. Compared in
+        // binary64, two rays an epsilon apart would make the cone the whole
+        // plane but a sliver (in_cone).
+        if(before_source.second==after_source.second && !before_at_source && !after_at_source
+           && v.before_reflects==v.after_reflects && (!v.before_reflects || !corner)) {
             v.single_ray=true;
             v.after_ray=v.before_ray;
         }
@@ -364,7 +456,7 @@ class DirectionalMaps {
     long long locate(const Query &q,size_t level) {
         auto &map=maps[level-1];
         if(map.original.size()==1) return 0;
-        if(inside(q,map.membership_corners)) return -1;
+        if(inside(q,map.membership_corners,[&](size_t a,size_t b){return on_corner_side(q,level-1,a,b);})) return -1;
         // A segment is a polygon with two vertices: its cones and pseudo-edges
         // are located as any polygon's. The derivative locator remains only
         // for comparison (segment_derivative_locator).
@@ -398,7 +490,8 @@ class DirectionalMaps {
             if(cone(j)) return 2*j;
             build_vertex(i,left);
             const auto &a=map.vertices[left], &b=map.vertices[j];
-            if(in_edge_plus(q,a.point,b.point,a.after_ray,b.before_ray)) right=mid;
+            const auto line=edge_line(i,left,j);
+            if(in_edge_plus(q,a.point,b.point,a.after_ray,b.before_ray,on_chord(q,i,left,j),line.first,line.second)) right=mid;
             else left=mid+1;
         }
         if(!in_cell(q,level,2*left+1)) return std::nullopt;
@@ -416,7 +509,8 @@ class DirectionalMaps {
         }
         build_vertex(i,(j+1)%n);
         const auto &a=map.vertices[j], &b=map.vertices[(j+1)%n];
-        return in_edge_plus(q,a.point,b.point,a.after_ray,b.before_ray);
+        const auto line=edge_line(i,j,(j+1)%n);
+        return in_edge_plus(q,a.point,b.point,a.after_ray,b.before_ray,on_chord(q,i,j,(j+1)%n),line.first,line.second);
     }
 
     // What locate returns for a query in cell c: the vertex, the reflection on
@@ -691,16 +785,16 @@ private:
         if(path.empty() || !(path.back()==p)) path.push_back(p);
     }
 
-    void query_path(const Point &q,size_t level,std::vector<Point> &path) {
+    void query_path(const Point &q,size_t level,std::vector<Point> &path,const Vertex *at=nullptr) {
         cycle_checkpoint();
         if(level==0) { append(path,start); append(path,q); return; }
-        const auto location=locate({q,{}},level);
-        if(location<0) { query_path(q,level-1,path); return; }
+        const auto location=locate(point_query(q,at),level);
+        if(location<0) { query_path(q,level-1,path,at); return; }
         auto &vertices=maps[level-1].vertices;
         const size_t j=size_t(location)/2;
         const Point a=vertices[j].point;
         if(location%2==0) {
-            query_path(a,level-1,path);
+            query_path(a,level-1,path,&vertices[j]);
             append(path,q);
             return;
         }
@@ -721,14 +815,14 @@ private:
         append(path,q);
     }
 
-    void query_trace(const Point &q,size_t level,std::vector<DirectionalTraceStep> &trace) {
+    void query_trace(const Point &q,size_t level,std::vector<DirectionalTraceStep> &trace,const Vertex *at=nullptr) {
         if(level==0) return;
-        const auto location=locate({q,{}},level);
+        const auto location=locate(point_query(q,at),level);
         DirectionalTraceStep step;step.level=level;
         if(location<0) {
             step.region=DirectionalTraceRegion::Crossing;
             trace.push_back(step);
-            query_trace(q,level-1,trace);
+            query_trace(q,level-1,trace,at);
             return;
         }
         const auto &vertices=maps[level-1].vertices;
@@ -742,7 +836,7 @@ private:
             step.defining_polygon=vertex.definition.polygon;
             step.defining_edge=vertex.definition.edge;
             trace.push_back(step);
-            query_trace(vertex.point,level-1,trace);
+            query_trace(vertex.point,level-1,trace,&vertex);
             return;
         }
         step.region=DirectionalTraceRegion::Edge;
@@ -763,19 +857,34 @@ private:
 #endif
     }
 
-    long double query_length(const Point &q,size_t level) {
+    long double query_length(const Point &q,size_t level,const Vertex *at=nullptr) {
         if(level==0) return distance(start,q);
-        const auto location=locate({q,{}},level);
-        if(location<0) return query_length(q,level-1);
+        const auto location=locate(point_query(q,at),level);
+        if(location<0) return query_length(q,level-1,at);
         auto &vertices=maps[level-1].vertices;
         const size_t j=size_t(location)/2;
         auto &v=vertices[j];
         if(location%2==0) {
-            if(!v.prefix_length) v.prefix_length=query_length(v.point,level-1);
+            if(!v.prefix_length) v.prefix_length=query_length(v.point,level-1,&v);
             return *v.prefix_length+distance(v.point,q);
         }
         const Point edge=vertices[(j+1)%vertices.size()].point-v.point;
         return query_length(reflect_point(q,v.point,edge),level-1);
+    }
+
+    using Definition=Vertex::Definition;
+    // Exact orientation of three input points, binary64 numbers in every
+    // arithmetic: the 128-bit determinant, or rationals, in binary64.
+    static int input_orientation(const Point &a,const Point &b,const Point &q) {
+#if defined(TPP_EXPERIMENT_NATIVE_DOUBLE) && !defined(TPP_DIRECTIONAL_FILTERED)
+        const Vector2 x=a.external(), y=b.external(), z=q.external();
+        if(const auto sign=dyadic_orientation(x,y,z)) return *sign;
+        using Q=tpp::ConvexRational;
+        const Q d=(Q(y.x)-Q(x.x))*(Q(z.y)-Q(x.y))-(Q(y.y)-Q(x.y))*(Q(z.x)-Q(x.x));
+        return d>0 ? 1 : d<0 ? -1 : 0;
+#else
+        return offset_cross_sign(b-a,q,a);
+#endif
     }
 
     // Splits each boundary at its contacts with the earlier boundaries. Only the
@@ -820,8 +929,9 @@ private:
                 auto add=[&](const Scalar &t,Vertex::Definition definition,std::array<size_t,3> order) {
                     if(t>=0 && t<1) splits.push_back({t,std::move(definition),order});
                 };
+                const Point b=map.original[(j+1)%map.original.size()];
                 auto collinear_point=[&](const Point &p,std::array<size_t,3> order) {
-                    if(edge.cross(p-a)==0)
+                    if(input_orientation(a,b,p)==0)
                         add((p-a).dot(edge)/edge.dot(edge),Vertex::Definition{.point=p},order);
                 };
                 collinear_point(start,{0,0,1});
@@ -835,25 +945,55 @@ private:
                     const Scalar denominator=edge.cross(other);
                     if(denominator==0) {
                         collinear_point(c,{1+h,k,0});
-                        collinear_point(c+other,{1+h,k,1});
+                        collinear_point(previous[(k+1)%previous.size()],{1+h,k,1});
                     } else {
-                        const Scalar t=(c-a).cross(other)/denominator;
-                        const Scalar u=(c-a).cross(edge)/denominator;
-                        if(u>=0 && u<=1) add(t,Vertex::Definition{.point=a+edge*t,
-                            .edge_intersection=true,.polygon=h,.edge=k},{1+h,k,0});
+                        // Where the crossing lies on each edge, from exact
+                        // orientations of the input points (rounded
+                        // parameters would split an edge an epsilon from a
+                        // corner where the crossing is that corner). At an
+                        // end of the edge of h the point is that corner, so
+                        // both edges of h at it give the same split.
+                        const Point d=previous[(k+1)%previous.size()];
+                        const int sa=input_orientation(c,d,a), sb=input_orientation(c,d,b);
+                        const int sc=input_orientation(a,b,c), sd=input_orientation(a,b,d);
+                        if(sb==0 || sa*sb>0 || sc*sd>0) continue;  // at b (the next edge's corner) or missed
+                        const Definition definition{.edge_intersection=true,.polygon=h,.edge=k};
+                        auto at=[&](const Point &p) {
+                            auto split=definition;split.point=p;
+                            add((p-a).dot(edge)/edge.dot(edge),std::move(split),{1+h,k,0});
+                        };
+                        if(sa==0) at(a);
+                        else if(sc==0) at(c);
+                        else if(sd==0) at(d);
+                        else {
+                            // The crossing with a line computed from its endpoints
+                            // in a canonical order: the same segment in two
+                            // polygons (opposite orientations) rounds the same.
+                            const bool swap=d.x<c.x || (d.x==c.x && d.y<c.y);
+                            const Point &cc=swap?d:c, oo=swap?c-d:d-c;
+                            const Scalar t=(cc-a).cross(oo)/edge.cross(oo);
+                            auto split=definition;split.point=a+edge*t;
+                            add(t,std::move(split),{1+h,k,0});
+                        }
                     }
                 }
                 std::sort(splits.begin(),splits.end(),[](const Split &x,const Split &y){
                     if(!(x.parameter==y.parameter)) return x.parameter<y.parameter;
                     return x.order<y.order;
                 });
-                splits.erase(std::unique(splits.begin(),splits.end(),[](const Split &x,const Split &y){
-                    return x.parameter==y.parameter;
-                }),splits.end());
-                for(const auto &split:splits) {
+                for(size_t first=0,next=0;first<splits.size();first=next) {
+                    const auto &split=splits[first];
                     Vertex v;
-                    v.point=a+edge*split.parameter;v.original_edge=j;v.edge_parameter=split.parameter;
+                    // The defining point: a+edge*t for a crossing inside both
+                    // edges, else an input point (a corner, the start), exact
+                    // where a+edge*t would round.
+                    v.point=split.definition.point;v.original_edge=j;v.edge_parameter=split.parameter;
                     v.definition=split.definition;
+                    // A contact found several times: the first definition, and
+                    // the line of an earlier edge through it if any has one.
+                    for(next=first;next<splits.size() && splits[next].parameter==split.parameter;++next)
+                        if(const auto &d=splits[next].definition; d.edge_intersection && !v.on_line)
+                            v.on_line={d.polygon,d.edge};
                     map.vertices.push_back(std::move(v));
                 }
             }
@@ -898,7 +1038,10 @@ public:
                     all->min_y=std::min(all->min_y,edge.min_y);all->max_y=std::max(all->max_y,edge.max_y);
                 }
                 if(p.size()<=2 || (p[j]-before).cross(after-p[j])!=0)
+                {
                     maps[i].membership_corners.push_back(p[j]);
+                    maps[i].corner_index.push_back(j);
+                }
             }
         }
         split_boundaries(!assume_disjoint);

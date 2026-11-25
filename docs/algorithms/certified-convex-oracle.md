@@ -247,6 +247,20 @@ entrada, sem tabela de caminhos e sem estado adicional nos nós de B&B. O dual e
 o objetivo de cada sequência continuam calculados a cada chamada. A contagem de
 predicados exatos passa a refletir os testes efetivamente executados em misses do memo.
 
+`TPP_GMP_POOL` (2026-11-25) compila `detail::install_gmp_pool()`, que instala
+funções de memória do GMP com listas livres por thread para blocos de até 512
+bytes, em classes de 16 bytes. A classe vem do tamanho que o GMP informa em
+`free` e `realloc`, o que só vale para blocos que o próprio pool alocou: por
+isso a biblioteca nunca o instala sozinha, e cada executável que o usa o chama
+primeiro no `main`, antes de qualquer alocação do GMP no processo (inclusive de
+outras bibliotecas, como CGAL ou MPFR). Hoje: `tpp-convex-cycle-sequences`,
+`tpp-convex-path-benchmark`, `tpp-convex-vertex-scaling` e os testes de ciclo e
+de certificado. Blocos liberados em outra thread entram na lista dela (todos
+vêm de `malloc`); cada lista guarda no máximo 512 blocos, e os de uma thread
+que termina não voltam ao sistema, então o pool serve a programas cujas
+threads duram a execução inteira. A aritmética não muda; sem a chamada, ou
+com `OFF`, vale o alocador padrão.
+
 As três otimizações devem preservar bit a bit contatos e limites e, sob o
 mesmo orçamento de chamadas sem interferência temporal, decisões da busca.
 Contagens de trabalho físico podem diminuir por reutilização de provas.

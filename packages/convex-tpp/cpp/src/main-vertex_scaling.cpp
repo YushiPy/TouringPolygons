@@ -11,6 +11,7 @@
 // oracle with the B&B's own request (gap, cutoff, warm start, features, one
 // workspace for the whole capture, as one worker keeps it), then Gurobi's SOCP
 // on the same regions in the same order. One JSON line per call.
+#include "solvers/gmp_pool.h"
 #include "tpp_convex.h"
 #include <gurobi_c++.h>
 #include <boost/property_tree/json_parser.hpp>
@@ -149,6 +150,8 @@ static int replay(const char *path,GRBEnv &env) {
 }
 
 int main(int argc,char **argv) {
+    // Before any GMP allocation (solvers/gmp_pool.h).
+    tpp::detail::install_gmp_pool();
     try {
         if(argc==3&&std::string(argv[1])=="--replay") {
             GRBEnv env(true);env.set(GRB_IntParam_OutputFlag,0);env.start();

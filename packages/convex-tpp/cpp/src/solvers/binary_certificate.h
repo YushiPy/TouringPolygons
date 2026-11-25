@@ -57,6 +57,32 @@ inline std::optional<int> dyadic_orientation(Vector2 a,Vector2 b,Vector2 q) {
 #endif
 }
 
+// A binary64 enclosure of a rational: mpq_get_d truncates toward zero, so a
+// nonzero rational lies within one ulp of it, and zero stays an exact point.
+// filtered: the caller verified the floating-point environment of this thread
+// (cycle_interval_environment). Otherwise, and without the GMP backend, the
+// whole line, which decides no sign.
+inline CycleInterval enclose_rational(const ConvexRational &q,bool filtered) {
+    if(q.is_zero())return {};
+#ifdef TPP_USE_GMP_RATIONAL
+    if(filtered) {
+        const double d=mpq_get_d(q.backend().data());
+        if(std::isfinite(d))return {CycleInterval::down(d),CycleInterval::up(d)};
+    }
+#endif
+    return {-INFINITY,INFINITY};
+}
+inline IntervalPoint enclose_rational(const ConvexRationalPoint &q,bool filtered) {
+    return {enclose_rational(q.x,filtered),enclose_rational(q.y,filtered)};
+}
+// The sign of (b-a) x (q-a) when the enclosures decide it; otherwise none.
+inline std::optional<int> filtered_side(const IntervalPoint &a,const IntervalPoint &b,const IntervalPoint &q) {
+    const auto side=(b-a).cross(q-a);
+    if(side.lo>0)return 1;
+    if(side.hi<0)return -1;
+    return std::nullopt;
+}
+
 // Membership signs that needed rational arithmetic (neither intervals nor the
 // 128-bit determinant decided them), per thread; callers read differences.
 inline thread_local std::size_t rational_membership_predicates=0;

@@ -398,6 +398,43 @@ case took 56.650867 μs/call in the first corrected measurement and 59.932225
 speed comparison between correct algorithms. Large exact intersection cases
 remain substantially costlier than the mature floating-point disjoint core.
 
+## Binary64 decisions on derived points (2026-11-25 and 2026-11-26)
+
+The binary64 variant of the maps (`TPP_EXPERIMENT_NATIVE_DOUBLE`) rounds every
+derived point (a crossing of two edges, a split of an edge). Six decisions
+treated such a point as if it were where its rounded value is, not where it
+exactly is. All six are fixed without a tolerance, and none changes a decision
+of the rational variant:
+
+1. A pseudo-vertex on another polygon's edge carries the line it lies on
+   (`Vertex::on_line`, `Query::on_map/on_edge`); tests against that line use a
+   zero constant.
+2. At a split vertex inside an original edge, both sides reflect on the
+   original edge (a difference of input points), and a degenerate cone is
+   marked `single_ray`.
+3. Where a crossing lies on each edge comes from exact orientations of the
+   input points (`dyadic_orientation`, rational if needed); at a corner the
+   point is the corner itself.
+4. The far end of the other edge is the input vertex, not `c+(d-c)` rounded
+   (a false pseudo-vertex an epsilon from a shared corner).
+5. The crossing with a segment shared by two polygons (opposite orientations)
+   is computed with its ends in a canonical order, so both polygons get the
+   same rounding (two pseudo-vertices an ulp apart otherwise).
+6. The side of a point with respect to a line through input points is the
+   exact orientation of the three points (`line_side`), in the membership
+   test and in chords; a chord between split points of one original edge is
+   that edge's input line.
+
+Audit of the anchored chain over the 1638 cycles of paper 1 (each polygon,
+its vertices and 7 points per edge; campaign `anchor-eligible`): failures
+250,743 before, 299 after 1–3 and 261 after 1–6. What remains is not a map
+decision: 228 points where the binary64 replay of the exact trace gives
+t = 1 + 2^-52 for an exact t just below 1 (the anchor on an edge shared with
+the first or last polygon rounds one ulp outside it), which the rational
+recovery covers, and 33 contacts at a crossing where `repair_contacts` picks
+another point of the same optimal route (same trace, same length to 1e-14).
+Every certified length and status of the corpus is unchanged.
+
 ## Validation
 
 The original failing audit had 287 checks and 25 failures with 40 random cases.

@@ -7,6 +7,14 @@
 namespace tpp {
 // GapClosed: binary64 bounds proved on the input close the requested
 // max_gap, without the exact KKT test; it does not assert exact optimality.
+// Which boundaries Algorithm 4.1 searches when the polygons are not pairwise
+// disjoint (pairwise disjoint polygons always search the one with fewest
+// vertices). P_i is eligible when P_{i-1} or P_{i+1} misses int(P_i) (a
+// segment, without interior, always is); by Lemma 4.1 it then has an optimal
+// visit point on its boundary. FewestVertices searches the boundary of the
+// eligible polygon with fewest vertices, and every boundary when none is
+// eligible; EveryBoundary searches them all.
+enum class ConvexCycleAnchorChoice { EveryBoundary, FewestVertices };
 enum class ConvexCycleStatus { InvalidInput, UnsupportedIntersection, Optimal, FloatingPointLimit, OracleFailure, CertifiedBound, Interrupted, ProposalLimit, GapClosed };
 
 struct ConvexCycleTimings {
@@ -166,6 +174,14 @@ struct ConvexCycleDoubleOptions {
     // without pivots its piece is bisected to binary64 resolution. Step 3 is
     // unchanged. false restores the earlier descriptors.
     bool descriptor_pivots = true;
+    // The closed-form step also tries the anchor straight through its edge
+    // (the cycle crossing the edge), not only a reflection on it. false
+    // restores the reflection alone.
+    bool straight_anchor = true;
+    // Evaluate every piece end of a boundary before bisecting any of its
+    // pieces. false: edge by edge, ends then bisection (the earlier order).
+    bool anchor_ends_first = true;
+    ConvexCycleAnchorChoice anchor_choice = ConvexCycleAnchorChoice::FewestVertices;
     // Cooperative checkpoints; default standalone solves have no deadline.
     // Interrupted retains only completed certificates; contacts may be empty.
     double max_seconds = std::numeric_limits<double>::infinity();
@@ -199,6 +215,8 @@ struct ConvexCycleOptions {
     // proves that the global lower bound reaches this threshold.
     double lower_bound_cutoff = std::numeric_limits<double>::infinity();
     bool bound_first = false;
+    ConvexCycleAnchorChoice anchor_choice = ConvexCycleAnchorChoice::FewestVertices;
+    bool straight_anchor = true, anchor_ends_first = true; // as in ConvexCycleDoubleOptions
     double max_seconds = std::numeric_limits<double>::infinity();
     std::function<bool()> stop_requested;
 };

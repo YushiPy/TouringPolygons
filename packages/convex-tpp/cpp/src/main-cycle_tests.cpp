@@ -1,3 +1,4 @@
+#include "solvers/gmp_pool.h"
 #include "tpp_convex.h"
 #include "tpp/convex/float_oracle.h"
 #include "solvers/cycle_refinement.h"
@@ -13,6 +14,7 @@
 #include <random>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 
 namespace {
 using Polygon = std::vector<Vector2>;
@@ -1439,8 +1441,12 @@ void boundary_anchor_method() {
 // optimal cycle visits two shared vertices. Without pivots the binary64
 // contacts next to those vertices carry an incident edge's feature, every
 // closed-form step and rebuild fails, and the pieces are bisected to binary64
-// resolution (Step 3 then finds the optimum). Pivots rebuild it at Step 2,
-// and so does the endpoint certificate: the optimum is at the end of a piece.
+// resolution (Step 3 then found the optimum). Since the binary64 map keeps
+// split vertices on their lines, the routes are right but contacts meeting at
+// a crossing come out an ulp apart; when nothing closes from a binary64 route
+// the exact anchored route decides, once, so every setting returns at Step 2.
+// Pivots still close from binary64 routes more often (fewer anchored TPPs and
+// exact recoveries).
 void step2_pivots_and_endpoint_certificate() {
     const Polygons p{
         {{332.7117089575053, 632.6725771935188}, {494.3312883435583, 550.9938650306749}, {519.3629242819843, 558.0861618798956}, {618.0807174887892, 643.342437831227}, {627.521808228854, 683.3955500618047}, {490.8408994484514, 764.2490453966907}, {335.059029296021, 640.9217315260166}},
@@ -1454,7 +1460,7 @@ void step2_pivots_and_endpoint_certificate() {
     };
     const auto reference=tpp::tpp_convex_solve_cycle(p);
     require(solved(reference),"uniform-0000015-2-k8: default rational path");
-    int step[2][2]{};std::size_t probes[2][2]{},skips[2][2]{};
+    int step[2][2]{};std::size_t probes[2][2]{},skips[2][2]{},anchored[2][2]{},recoveries[2][2]{};
     for(const bool endpoint:{false,true})for(const bool pivots:{false,true}) {
         tpp::ConvexCycleDoubleOptions options;options.refine_contacts=false;options.float_polish=false;
         options.endpoint_certificate=endpoint;options.descriptor_pivots=pivots;
@@ -1464,17 +1470,86 @@ void step2_pivots_and_endpoint_certificate() {
                 independent.lower_bound<=reference.certificate.upper_bound&&reference.certificate.lower_bound<=independent.upper_bound,
                 "uniform-0000015-2-k8: exact optimum in every setting");
         step[endpoint][pivots]=r.method_step;probes[endpoint][pivots]=r.bisection_probes;skips[endpoint][pivots]=r.endpoint_skips;
+        anchored[endpoint][pivots]=r.anchored_solves;recoveries[endpoint][pivots]=r.rational_anchor_recoveries;
         if(!endpoint)require(r.endpoint_certificates==0,"uniform-0000015-2-k8: no endpoint certificate when off");
     }
-    require(step[0][0]==3&&probes[0][0]>200,"uniform-0000015-2-k8: the earlier Step 2 bisects to binary64 resolution");
-    require(step[0][1]==2&&probes[0][1]<probes[0][0]/10,"uniform-0000015-2-k8: pivots return at Step 2");
-    require(step[1][0]==2&&skips[1][0]>0,"uniform-0000015-2-k8: the endpoint certificate returns at Step 2");
-    std::cout<<"Step 2 on uniform-0000015-2-k8: step/probes "<<step[0][0]<<'/'<<probes[0][0]<<" earlier, "
-        <<step[0][1]<<'/'<<probes[0][1]<<" with pivots, "<<step[1][0]<<'/'<<probes[1][0]<<" with the endpoint certificate ("
+    for(const bool endpoint:{false,true})for(const bool pivots:{false,true})
+        require(step[endpoint][pivots]==2&&probes[endpoint][pivots]==0,"uniform-0000015-2-k8: every setting returns at Step 2 without bisection");
+    require(anchored[0][1]<anchored[0][0]&&recoveries[0][1]<recoveries[0][0],
+            "uniform-0000015-2-k8: pivots close from binary64 routes more often");
+    std::cout<<"Step 2 on uniform-0000015-2-k8: anchored/exact recoveries "<<anchored[0][0]<<'/'<<recoveries[0][0]<<" without pivots, "
+        <<anchored[0][1]<<'/'<<recoveries[0][1]<<" with pivots, "<<anchored[1][0]<<'/'<<recoveries[1][0]<<" with the endpoint certificate ("
         <<skips[1][0]<<" pieces skipped).\n";
 }
 
+
+// Algorithm 4.1 with one eligible boundary (ConvexCycleAnchorChoice): every
+// suite cycle, in every choice, returns a cycle that passes the exact
+// certificate with the optimal length of the default search, in the exact
+// mode, in the tolerant mode and in the rational search alone.
+void anchor_choices() {
+    using Choice=tpp::ConvexCycleAnchorChoice;
+    // {choice, straight anchor, ends first}: the default and the earlier
+    // closed-form step and order, with one boundary and with every boundary.
+    const std::tuple<Choice,bool,bool> rules[]{{Choice::FewestVertices,true,true},{Choice::FewestVertices,false,false},
+        {Choice::EveryBoundary,true,true},{Choice::EveryBoundary,false,false}};
+    // P_1 contains both segments, which do not meet: every optimal cycle
+    // visits P_1 inside it, so P_1, whose neighbors meet int(P_1), is not
+    // eligible, though it meets the interior of neither. The segments are.
+    const Polygons inside{box(0,0,10,10),{{2,5},{8,5}},{{5,6},{5,9}}};
+    // Fekete's berlin_n010_seed3033 hulls (k=4): consecutive hulls overlap in
+    // slivers, so no polygon is eligible and every boundary is searched.
+    const Polygons berlin{
+        {{40.75,98.37},{43.33,98.06},{58.91,107.0},{60.99,118.6},{65.88,146.65},{49.29,149.68}},
+        {{58.79,106.28},{68.41,96.39},{74.03,95.29},{76.54,109.91},{80.13,131.08},{82.2,143.74},{65.88,146.65},{63.57,133.95},{58.91,107.0}},
+        {{60.75,6.59},{97.32,0.0},{98.89,8.59},{100.29,17.2},{69.18,22.78},{63.71,23.76}},
+        {{34.58,28.95},{35.24,28.83},{86.31,19.68},{100.29,17.2},{101.92,26.39},{103.36,34.62},{37.58,45.96}}};
+    auto cases=anchor_method_cases;
+    cases.push_back({"segments inside a square",inside});
+    cases.push_back({"berlin_n010_seed3033-k4",berlin});
+    std::size_t checked=0;
+    for(const auto &[name,p]:cases) {
+        const auto reference=tpp::tpp_convex_solve_cycle(p);
+        require(solved(reference),name+": default rational path");
+        auto same=[&](const tpp::ConvexCycleCertificateResult &c,const std::string &what) {
+            require(c.lower_bound<=reference.certificate.upper_bound&&reference.certificate.lower_bound<=c.upper_bound,name+": "+what+" length");
+        };
+        for(const auto &[choice,straight,ends_first]:rules) {
+            const std::string rule=std::string(choice==Choice::FewestVertices?"eligible":"every")+(ends_first?"":"-peredge")+
+                (straight?"":"-reflect");
+            tpp::ConvexCycleDoubleOptions options;options.refine_contacts=false;options.float_polish=false;
+            options.anchor_choice=choice;options.straight_anchor=straight;options.anchor_ends_first=ends_first;
+            const auto r=tpp::tpp_convex_solve_cycle_double(p,options);
+            require(r.method_step>=1&&!r.exact_contacts.empty(),name+" ("+rule+"): no exact cycle: "+r.diagnostic);
+            const auto independent=tpp::tpp_convex_verify_cycle_certificate(exact(p),r.exact_contacts);
+            require(independent.status==tpp::ConvexCycleCertificateStatus::Optimal,name+" ("+rule+"): exact certificate");
+            same(independent,rule);
+            auto tolerant=options;tolerant.max_gap=1e-6;tolerant.boundary_search_gap=true;tolerant.interval_certificate=true;
+            const auto g=tpp::tpp_convex_solve_cycle_double(p,tolerant);
+            require(g.certificate.lower_bound<=reference.certificate.upper_bound&&
+                    reference.certificate.lower_bound<=g.certificate.upper_bound&&
+                    g.certificate.upper_bound-g.certificate.lower_bound<=1e-6+1e-9*std::abs(g.certificate.upper_bound),
+                    name+" ("+rule+", tolerant): bounds enclose the optimum");
+            tpp::ConvexCycleOptions rational;rational.refine_contacts=false;rational.anchor_choice=choice;
+            rational.straight_anchor=straight;rational.anchor_ends_first=ends_first;
+            const auto q=tpp::tpp_convex_solve_cycle(p,rational);
+            require(solved(q),name+" ("+rule+", rational): "+q.diagnostic);
+            same(q.certificate,rule+", rational");
+            if(name=="segments inside a square") {
+                const auto c=q.contacts[0];
+                require(std::abs(q.certificate.upper_bound-2)<1e-12&&c.x==5&&c.y>=5&&c.y<=6,
+                        "segments inside a square: optimum of length 2, visiting P_1 inside it");
+                if(choice==Choice::FewestVertices)require(q.anchor_polygon!=0&&r.anchor_polygon!=0,"segments inside a square: a segment is searched, not P_1");
+            }
+            ++checked;
+        }
+    }
+    std::cout<<"Anchor choices: "<<cases.size()<<" cycles in "<<checked<<" configurations, same optimal length\n";
+}
+
 int main() {
+    // Before any GMP allocation (solvers/gmp_pool.h).
+    tpp::detail::install_gmp_pool();
     try {
         binary64_stage();
         degenerate_regions();
@@ -1482,7 +1557,7 @@ int main() {
         cooperative_interruption();
         bound_first_contacts();
         prepared_geometry_and_features();known_cycles();invalid_inputs();references();random_cycles();intersecting_cycles();rotated_squares();logarithmic_queries();boundary_memberships();support_near_ties();convex_intersections();active_contact_regressions();boundary_recovery_regressions();
-        boundary_anchor_method();boundary_anchor_method_with_gap();step2_pivots_and_endpoint_certificate();boundary_search_gap_coincident_block();
+        boundary_anchor_method();boundary_anchor_method_with_gap();step2_pivots_and_endpoint_certificate();boundary_search_gap_coincident_block();anchor_choices();
         std::cout<<"Double comparisons: "<<compared_double_cases<<", maximum objective difference="<<largest_double_difference<<", maximum certified gap="<<largest_double_gap<<", local recoveries="<<total_anchor_recoveries<<'\n';
         std::cout<<"Cycle solver tests passed.\n";
         return 0;
