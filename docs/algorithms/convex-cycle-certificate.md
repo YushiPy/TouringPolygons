@@ -225,3 +225,38 @@ fixed-precision operations and O(k) temporary storage, in addition to exact
 predicates for ambiguous signs and any full KKT/fallback work. The prepared
 binary64 view costs O(N) memory. This changes practical arithmetic costs, not
 the exact solver's worst-case bit complexity or B&B's numerical gap contract.
+
+## Exact predicates without rational normalization (2026-11-25)
+
+The decisions above are unchanged; only how their signs are computed changed.
+
+- Binary64 polygons are validated and normalized by exact binary64
+  predicates (`binary_convex_region`, `prepare_cycle_polygons` on
+  `std::vector<std::vector<Vector2>>`, and the binary pairwise disjointness
+  test): the 128-bit orientation determinant, rationals only when it cannot
+  hold the exponents, and binary64 comparisons for coordinate signs. The
+  nonzero turns of an accepted boundary share one sign, which replaces the
+  area's sign; at a zero turn the two edges are parallel and nonzero, so one
+  coordinate gives the sign of their dot product.
+- The side of a rational point from an edge is first decided by binary64
+  enclosures (`enclose_rational`, `filtered_side`) when
+  `cycle_interval_environment()` holds in the calling thread, checked once per
+  certificate (rounding mode and flush-to-zero are per thread); an undecided
+  side, such as the edge that holds a contact, uses the exact cross product.
+- Invalid polygons are rejected exactly as before, but the diagnostic can
+  name another defect: the binary test reports mixed turn signs first.
+- `cycle_nonzero_contact_support` evaluates every sign with homogeneous
+  integers: each of `before`, `after` and a direction is replaced by a
+  positive multiple with integer coordinates (contacts as `(X, Y, W)`), which
+  leaves `sign(a/sqrt(A)-b/sqrt(B))` and every zero test unchanged.
+- The length bounds of an optimal certificate take one integer root per link
+  for both bounds and sum the dyadic roots in integers; the rational values
+  are those of `rational_sqrt_lower` and `rational_sqrt_upper`.
+- `detail::cycle_optimality_certificate` is this certificate for callers that
+  keep a candidate only when it is `Optimal`; other candidates get the
+  trivial bounds 0 and +infinity instead of the reporting bounds.
+
+Equivalence was checked against the previous implementation on the paper's
+corpus and on perturbed and synthetic cases
+(`benchmarks/workspace/experiments/anchor-eligible/cuts/`), and the cycle
+runs reproduce every status and every bit of the reported bounds.

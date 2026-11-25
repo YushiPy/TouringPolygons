@@ -823,14 +823,31 @@ runs the method of paper 1 without any feature sweep, in either arithmetic.
 
 1. **Common point.** As before: binary64 intersection, then the exact one.
 2. **Binary64 search.** Pairwise disjoint polygons search the boundary of
-   the polygon with fewest vertices (`search_cycle`); otherwise every boundary,
-   split at the other boundaries (`search_intersecting_boundaries`). Since
+   the polygon with fewest vertices (`search_cycle`). Otherwise, since
+   2026-11-26 (`anchor_choice=FewestVertices`, the default), the boundary of
+   the eligible polygon with fewest vertices, split at the other boundaries
+   (`search_intersecting_boundaries`): P_i is eligible when P_{i-1} or
+   P_{i+1} misses int(P_i), and then (Lemma 4.1) the segment from that
+   neighbour's visit point to an interior visit point crosses ∂P_i, where the
+   visit is no longer. Every boundary only when no polygon is eligible
+   (`EveryBoundary` keeps the earlier search). The closed-form step also tries
+   the anchor straight through its edge (`straight_anchor`), which is the point
+   of the lemma, and every piece end of the boundary is evaluated before any
+   piece is bisected (`anchor_ends_first`). Staged schedules with budgets of
+   anchored TPPs were measured and removed: they only made up for the missing
+   straight step (campaign `anchor-eligible`). With `refine_contacts`, one
+   anchored TPP at a vertex of every boundary still comes first, because it
+   seeds the contact refinement. On the hand-made cycles without an eligible
+   polygon, bands along the sides of a regular k-gon are the exact mode's
+   structural worst case (F nearly constant on the boundary, exact anchored
+   TPPs with thousands of bits; same campaign, `noeligible/`). Since
    2026-11-20 a point is the only anchor, in Steps 2 and 3: every tour visits
    it at itself, so the anchored TPP at the point is the CTPP. A segment has
-   no interior, so searching it alone would also be complete, but on the
-   paper 1 cycles with one polygon replaced by a segment that made the
-   rational search 2.5 times slower; segments are searched with the other
-   boundaries, on one of their two coincident edges. Each
+   no interior, so it is always eligible, and with two vertices it is the
+   polygon searched (on one of its two coincident edges). On 2026-11-20,
+   before the straight step, searching the segment alone made the rational
+   search 2.5 times slower on the paper 1 cycles with one polygon replaced by
+   a segment; that has not been measured again since. Each
    anchored TPP is the binary64 construction of the TPP flow
    (`double_candidate_chain`: trace, replay and contact repair), and the
    rational construction only when it throws. The candidates are not

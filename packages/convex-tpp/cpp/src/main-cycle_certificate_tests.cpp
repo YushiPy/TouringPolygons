@@ -1,3 +1,4 @@
+#include "solvers/gmp_pool.h"
 #include "tpp/convex/cycle_certificate.h"
 #include "solvers/cycle_zero_certificate.h"
 
@@ -274,6 +275,8 @@ void tangent_cone_against_all_vertices() {
     std::cout<<"Tangent cone versus all-vertex exact support: "<<checked<<" cases passed.\n";
 }
 int main() {
+    // Before any GMP allocation (solvers/gmp_pool.h).
+    tpp::detail::install_gmp_pool();
 	try {
         tangent_cone_against_all_vertices();
         interval_certificates();

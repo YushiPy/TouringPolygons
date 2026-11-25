@@ -9,14 +9,12 @@ namespace tpp {
 // max_gap, without the exact KKT test; it does not assert exact optimality.
 // Which boundaries Algorithm 4.1 searches when the polygons are not pairwise
 // disjoint (pairwise disjoint polygons always search the one with fewest
-// vertices). EveryBoundary searches them all. The other choices search one
-// eligible polygon: P_i is eligible when neither P_{i-1} nor P_{i+1} meets
-// int(P_i) (a segment, without interior, always is). Lemma 4.1: an eligible
-// polygon has an optimal visit point on its boundary. FewestVertices and
-// FewestPieces choose among the eligible ones by vertex count, or by the
-// number of pieces of the split boundary (ties: vertices, then index).
-// Without an eligible polygon every boundary is searched.
-enum class ConvexCycleAnchorChoice { EveryBoundary, FewestVertices, FewestPieces };
+// vertices). P_i is eligible when P_{i-1} or P_{i+1} misses int(P_i) (a
+// segment, without interior, always is); by Lemma 4.1 it then has an optimal
+// visit point on its boundary. FewestVertices searches the boundary of the
+// eligible polygon with fewest vertices, and every boundary when none is
+// eligible; EveryBoundary searches them all.
+enum class ConvexCycleAnchorChoice { EveryBoundary, FewestVertices };
 enum class ConvexCycleStatus { InvalidInput, UnsupportedIntersection, Optimal, FloatingPointLimit, OracleFailure, CertifiedBound, Interrupted, ProposalLimit, GapClosed };
 
 struct ConvexCycleTimings {
@@ -176,39 +174,14 @@ struct ConvexCycleDoubleOptions {
     // without pivots its piece is bisected to binary64 resolution. Step 3 is
     // unchanged. false restores the earlier descriptors.
     bool descriptor_pivots = true;
-    // Boundaries searched without pairwise disjointness (ConvexCycleAnchorChoice).
-    // anchor_first_pass keeps the first pass, one anchored TPP at a vertex of
-    // every boundary, before the search of the chosen one.
-    ConvexCycleAnchorChoice anchor_choice = ConvexCycleAnchorChoice::EveryBoundary;
-    bool anchor_first_pass = true;
-    // After the eligible boundary, search the other boundaries too, in the
-    // binary64 search (Step 2) and in the rational search (Step 3). Only the
-    // order changes: the eligible boundary alone is complete.
-    bool anchor_rest_step2 = false, anchor_rest_step3 = false;
-    // Staged schedule (needs an eligible polygon and recovery): Step 2 on the
-    // eligible boundary; Step 3 on it with at most anchor_rational_budget
-    // rational anchored TPPs; Step 2 on the other boundaries; Step 3 on the
-    // eligible boundary, complete. The binary64-first search of
-    // boundary_search_gap takes the eligible boundary, then the others.
-    bool anchor_staged = false;
-    std::size_t anchor_rational_budget = 16;
-    // With anchor_staged, a first pass over the other boundaries in binary64,
-    // stopped after this many anchored TPPs, before the rational budget (0: none).
-    std::size_t anchor_float_budget = 0;
-    // With anchor_staged (fixed stages), stop the first stage, the binary64
-    // search of the eligible boundary, after this many anchored TPPs (0: none).
-    std::size_t anchor_first_budget = 0;
-    // With anchor_staged, iterative deepening instead of the fixed stages: in
-    // rounds r = 0, 1, ..., the binary64 search of the eligible boundary and
-    // that of the other boundaries each get anchor_deepen_base * 2^r anchored
-    // TPPs, and the rational search of the eligible boundary gets that budget
-    // divided by anchor_deepen_ratio (at least 1). A search that ends within
-    // its budget is not run again; the rational one is complete (0: off).
-    std::size_t anchor_deepen_base = 0, anchor_deepen_ratio = 32, anchor_deepen_min = 1;
-    // With anchor_staged, whether the binary64-first search of
-    // boundary_search_gap goes on to the other boundaries (true) or stops at
-    // the eligible one and leaves the rest to the staged exact path.
-    bool anchor_staged_float_rest = true;
+    // The closed-form step also tries the anchor straight through its edge
+    // (the cycle crossing the edge), not only a reflection on it. false
+    // restores the reflection alone.
+    bool straight_anchor = true;
+    // Evaluate every piece end of a boundary before bisecting any of its
+    // pieces. false: edge by edge, ends then bisection (the earlier order).
+    bool anchor_ends_first = true;
+    ConvexCycleAnchorChoice anchor_choice = ConvexCycleAnchorChoice::FewestVertices;
     // Cooperative checkpoints; default standalone solves have no deadline.
     // Interrupted retains only completed certificates; contacts may be empty.
     double max_seconds = std::numeric_limits<double>::infinity();
@@ -242,15 +215,8 @@ struct ConvexCycleOptions {
     // proves that the global lower bound reaches this threshold.
     double lower_bound_cutoff = std::numeric_limits<double>::infinity();
     bool bound_first = false;
-    // Boundaries searched without pairwise disjointness (ConvexCycleAnchorChoice).
-    // anchor_first_pass keeps the first pass, one anchored TPP at a vertex of
-    // every boundary, before the search of the chosen one.
-    ConvexCycleAnchorChoice anchor_choice = ConvexCycleAnchorChoice::EveryBoundary;
-    bool anchor_first_pass = true;
-    // After the eligible boundary, search the other boundaries too, in the
-    // binary64 search (Step 2) and in the rational search (Step 3). Only the
-    // order changes: the eligible boundary alone is complete.
-    bool anchor_rest_step2 = false, anchor_rest_step3 = false;
+    ConvexCycleAnchorChoice anchor_choice = ConvexCycleAnchorChoice::FewestVertices;
+    bool straight_anchor = true, anchor_ends_first = true; // as in ConvexCycleDoubleOptions
     double max_seconds = std::numeric_limits<double>::infinity();
     std::function<bool()> stop_requested;
 };

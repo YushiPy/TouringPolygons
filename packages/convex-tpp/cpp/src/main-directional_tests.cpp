@@ -518,11 +518,13 @@ void deterministic() {
                 check(hybrid.lower_bound<=reference+2e-12*reference &&
                       hybrid.upper_bound>=reference-2e-12*reference,
                       name+" rejects the suboptimal objective, including filtered construction");
-#ifdef TPP_HAS_FILTERED_DIRECTIONAL
-                check(hybrid.stats.filtered_attempted&&hybrid.stats.filtered_certified&&
+                // The split vertex of the triangle on the box lies exactly on
+                // the box edge; the binary64 map tests it against that line
+                // with a zero constant (Query::on_map), so its trace is right
+                // without the filtered recovery that it once needed.
+                check(hybrid.stats.double_certified&&!hybrid.stats.filtered_attempted&&
                       !hybrid.stats.rational_fallback,
-                      name+" recovers its combinatorial trace with filtered predicates");
-#endif
+                      name+" certifies its binary64 trace without recovery");
             }
         } catch(const std::exception &e) {check(false,name+" hybrid exception: "+e.what());}
         auto reversed=c;
@@ -768,12 +770,13 @@ void touching_disjoint_recovery() {
         const auto reference=tpp::detail::solve_intersecting_map_contacts_with_bounds(c.start,c.target,c.polygons,false);
         check(r.lower_bound<=reference.upper_bound&&r.upper_bound>=reference.lower_bound,
               "shared-edge recovery agrees with original rational reference");
-#ifdef TPP_HAS_TOUCHING_DISJOINT
-        if(scale==1)check(r.stats.touching_disjoint_attempted&&r.stats.touching_disjoint_certified&&
-            r.stats.touching_disjoint_perturbed&&!r.stats.rational_fallback&&
+        // Split vertices on the shared edge keep its line (Query::on_map), so
+        // the binary64 trace is right without the shared-edge contraction it
+        // once needed.
+        if(scale==1)check(r.stats.double_certified&&!r.stats.touching_disjoint_attempted&&
+            !r.stats.filtered_attempted&&!r.stats.rational_fallback&&
             r.fallback_reason==tpp::ConvexFallbackReason::None,
-            "shared-edge contraction avoids directional recovery after exact replay");
-#endif
+            "shared-edge binary64 trace certifies without recovery");
         const auto reversed=tpp::tpp_convex_solve_hybrid(c.target,c.start,
             Polygons(c.polygons.rbegin(),c.polygons.rend()),options);
         check(reversed.lower_bound<=r.upper_bound&&reversed.upper_bound>=r.lower_bound&&

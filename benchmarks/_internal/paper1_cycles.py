@@ -282,7 +282,7 @@ def summarize_anchors(context: Context) -> dict | None:
 			continue
 		by_rule: dict = {}
 		for row in rows:
-			by_rule.setdefault(row.get("anchor_rule", "every"), []).append(row)
+			by_rule.setdefault(row.get("anchor_rule", "eligible"), []).append(row)
 		times = {rule: {} for rule in by_rule}
 		for rule, group in by_rule.items():
 			reps: dict = {}
@@ -364,7 +364,7 @@ def parse(argv: Sequence[str] | None) -> argparse.Namespace:
 	parser.add_argument("--archive", help="the 558-case archive (default: Fekete's upstream checkout, from fekete-setup)")
 	parser.add_argument("--tolerant", action="store_true", help="also run the tolerant mode (step cycles-tolerant)")
 	parser.add_argument("--anchor", help="anchor rules of Algorithm 4.1, comma-separated, alternated per cycle in one "
-		"process (tpp-convex-cycle-sequences ANCHOR), e.g. every,vertices-staged8; the summary compares them with the first")
+		"process (tpp-convex-cycle-sequences ANCHOR: eligible, the default, or every, with -peredge and -reflect), e.g. every-peredge-reflect,eligible; the summary compares them with the first")
 	return parser.parse_args(argv)
 
 

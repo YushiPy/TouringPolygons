@@ -54,6 +54,7 @@
 // --oracle-capture, without --cycle): our oracle with the B&B's own request
 // (cutoff and tolerance, one workspace for the whole capture, as one worker
 // keeps it), then Gurobi's SOCP on the same path. One JSON line per call.
+#include "solvers/gmp_pool.h"
 #include "tpp_convex.h"
 #include "tpp/convex/solution.h"
 #include "tpp/convex/detail/intersecting_maps.h"
@@ -260,6 +261,8 @@ static int replay(const char *path,GRBEnv &env) {
 }
 
 int main(int argc,char **argv) {
+    // Before any GMP allocation (solvers/gmp_pool.h).
+    tpp::detail::install_gmp_pool();
     try {
         std::cout<<std::setprecision(17);
         if(argc==3&&std::string(argv[1])=="--replay") {
