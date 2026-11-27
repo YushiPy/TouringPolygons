@@ -134,13 +134,46 @@ def step_check(context: Context) -> dict:
 	return paper1.step_check(context)
 
 
-def step_cycles(context: Context, step: str = "cycles", config: str = "exact") -> dict:
+LARGE_KS = {"disjoint": (4, 8, 16, 32, 64), "intersecting": (8, 16, 32, 64)}
+LARGE_MS = (64, 512, 4096, 32768)
+LARGE_SEEDS = 3
+
+
+def large_cycle_instances(smoke: bool) -> list[dict]:
+	"""Cycles through polygons with many vertices (paper 1, Section 5.2, the
+	referee's request R5c): the polygons of paths-fine (hulls of m points on an
+	ellipse, grid 2^-30) on a ring in cyclic order, consecutive centers 2.4 apart
+	(disjoint, no radial shift) or 1.1 apart with a radial shift in [-0.3, 0.3]
+	(intersecting). With k >= 8 the intersecting ring has no common point."""
+	import math
+	ks = {"disjoint": (4, 8), "intersecting": (8,)} if smoke else LARGE_KS
+	ms, seeds = ((64, 512), 1) if smoke else (LARGE_MS, LARGE_SEEDS)
+	instances = []
+	for family, family_ks in ks.items():
+		spacing, wobble = paper1.FAMILIES[family]
+		for k in family_ks:
+			for m in ms:
+				for seed in range(seeds):
+					rng = random.Random(f"cycle-large-{family}-{k}-{m}-{seed}")
+					radius = spacing / (2 * math.sin(math.pi / k))
+					polygons = []
+					for i in range(k):
+						angle = 2 * math.pi * i / k
+						r = radius + (rng.uniform(-wobble, wobble) if family == "intersecting" else 0.0)
+						polygons.append(paper1.convex_polygon(rng, (r * math.cos(angle), r * math.sin(angle)),
+							rng.uniform(0.6, 1.0), m, rng.uniform(0.5, 1.0), paper1.FINE_SCALE))
+					instances.append({"name": f"large-{family}-k{k}-m{m}-s{seed}", "case": f"large-{family}", "k": k,
+						"family": family, "m": m, "regions": [], "polygons": polygons})
+	return instances
+
+
+def step_cycles(context: Context, step: str = "cycles", config: str = "exact", large: bool = False) -> dict:
 	"""config exact: gap zero (the paper's runs). tolerant: gap 1e-6 times the
 	perimeter of the cycle through the polygons' vertex means, Gurobi's default
 	scale, with Algorithm 4.1 in binary64 first (tpp-convex-cycle-sequences
 	CONFIG); same instances and protocol."""
 	directory = context.step_dir(step)
-	instances = cycle_instances(context.cases(), context.smoke, context.args.limit)
+	instances = large_cycle_instances(context.smoke) if large else cycle_instances(context.cases(), context.smoke, context.args.limit)
 	(directory / "plan.json").write_text(json.dumps([{key: item[key] for key in ("name", "case", "k", "regions")}
 		for item in instances]))
 	tasks = []
@@ -154,7 +187,7 @@ def step_cycles(context: Context, step: str = "cycles", config: str = "exact") -
 			"stdout": directory / "results" / f"{item['name']}.jsonl",
 			"timeout": REPETITIONS * (context.args.seconds + 600)})
 	failures = paper1.run_parallel(context, tasks, step)
-	return {"instances": len(instances), "config": config, "anchor": getattr(context.args, "anchor", None),
+	return {"instances": len(instances), "config": config, "large": large, "anchor": getattr(context.args, "anchor", None),
 		"limit": context.args.limit, "seconds_cap": context.args.seconds,
 		"failures": failures, "git": workspace.git_state(), "power": power_state()}
 
@@ -235,11 +268,49 @@ def summarize_cycles(rows: list[dict]) -> dict:
 				"total": sum(row["ours"]["probes"] for row in first)},
 			"rational_anchor_recoveries": {"instances": sum(1 for row in first if row["ours"]["rational_anchor_recoveries"]),
 				"total": sum(row["ours"]["rational_anchor_recoveries"] for row in first)},
+			# The exact baseline: Gurobi's points rebuilt and certified exactly
+			# (exact runs only); its time is Gurobi's plus the certification.
+			"gurobi_certified": certified_summary(instances, ours),
 			"rational_search": {"instances": sum(1 for row in first if row["ours"]["rational_cycle_recoveries"]),
 				"anchored_total": sum(row["ours"]["rational_anchored"] for row in first),
 				"probes_total": sum(row["ours"]["rational_probes"] for row in first)},
 		}
 		out[str(key)] = entry
+	return out
+
+
+def certified_summary(instances: list, ours: list) -> dict | None:
+	"""Gurobi with our certificate: how many of Gurobi's answers were rebuilt
+	into a certified optimal cycle, and the time of Gurobi plus the
+	certification against ours (medians per instance, geometric mean)."""
+	rows = [[row for row in repetitions if row["gurobi"].get("certified")] for repetitions in instances]
+	if not any(rows):
+		return None
+	certified = sum(1 for repetitions in rows if repetitions and repetitions[0]["gurobi"]["certified"]["status"] == 2)
+	baseline = [paper1.median(row["gurobi"]["total"] + row["gurobi"]["certified"]["mean"] for row in repetitions)
+		if repetitions else None for repetitions in rows]
+	pairs = [(b, o) for b, o, repetitions in zip(baseline, ours, rows)
+		if b and o and repetitions and repetitions[0]["gurobi"]["certified"]["status"] == 2]
+	return {"instances": sum(1 for repetitions in rows if repetitions), "certified_optimal": certified,
+		"certify_median_s": paper1.median(paper1.median(row["gurobi"]["certified"]["mean"] for row in repetitions)
+			for repetitions in rows if repetitions),
+		"baseline_over_ours_geomean_certified": paper1.geometric_mean(b / o for b, o in pairs),
+		"baseline_faster_certified": sum(1 for b, o in pairs if b < o)}
+
+
+def summarize_large(rows: list[dict]) -> dict:
+	"""The large cycles per family and k (name large-FAMILY-kK-mM-sS), and per
+	family and m, with the summary of summarize_cycles in each group."""
+	out = {}
+	for key in ("k", "m"):
+		groups: dict = {}
+		for row in rows:
+			parts = row["name"].split("-")
+			family, k, m = parts[1], int(parts[2][1:]), int(parts[3][1:])
+			groups.setdefault(f"{family}-{key}{k if key == 'k' else m}", []).append(row)
+		for name, group in groups.items():
+			out[name] = summarize_cycles(group)["all"]
+	out["all"] = summarize_cycles(rows)["all"]
 	return out
 
 
@@ -254,7 +325,8 @@ def write_per_instance(out: Path, target: Path, step: str = "cycles") -> int:
 	with target.open("w", newline="") as file:
 		writer = csv.writer(file, lineterminator="\n")
 		writer.writerow(["name", "k", "n", "step", "ours_ms", "gurobi_ms", "gurobi_build_ms", "gurobi_optimize_ms",
-			"gurobi_status", "gurobi_minus_L_rel", "anchored", "probes", "rational_anchor_recoveries"])
+			"gurobi_status", "gurobi_minus_L_rel", "anchored", "probes", "rational_anchor_recoveries",
+			"certified_status", "certify_ms"])
 		for name in sorted(by):
 			reps = by[name]
 			ours, gurobi = reps[0]["ours"], reps[0]["gurobi"]
@@ -265,7 +337,9 @@ def write_per_instance(out: Path, target: Path, step: str = "cycles") -> int:
 				f"{paper1.median(row['ours']['mean'] for row in reps) * 1e3:.4g}",
 				f"{paper1.median(row['gurobi']['total'] for row in reps) * 1e3:.4g}",
 				*(paper1.number(paper1.milliseconds(paper1.gurobi_part(reps, part)), 4) for part in ("build", "optimize")),
-				gurobi["status"], gap, ours["anchored"], ours["probes"], ours["rational_anchor_recoveries"]])
+				gurobi["status"], gap, ours["anchored"], ours["probes"], ours["rational_anchor_recoveries"],
+				gurobi["certified"]["status"] if gurobi.get("certified") else "",
+				f"{paper1.median(row['gurobi']['certified']['mean'] for row in reps) * 1e3:.4g}" if gurobi.get("certified") else ""])
 	return len(by)
 
 

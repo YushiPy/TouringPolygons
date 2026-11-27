@@ -372,15 +372,18 @@ template<class S> struct CycleRefinement {
             }
             return (from+lo)%m;
         };
-        Chord c{-std::numeric_limits<S>::infinity(),std::numeric_limits<S>::infinity(),0,0};
+        // Without a bound on one side the line misses the polygon's interior
+        // there; flags instead of infinities, so that rationals work too.
+        Chord c{S(0),S(0),0,0};bool has_lo=false,has_hi=false;
         for(size_t edge:{crossing(top,bottom,true),crossing(bottom,top,false)})
             for(size_t j:{(edge+m-1)%m,edge,(edge+1)%m}) {
                 const P e=p[(j+1)%m]-p[j];const S offset=e.cross(a-p[j]),slope=e.cross(d);
-                if(slope>0){if(-offset/slope>c.lo){c.lo=-offset/slope;c.enter=j;}}
-                else if(slope<0){if(-offset/slope<c.hi){c.hi=-offset/slope;c.leave=j;}}
+                if(slope>0){const S t=-offset/slope;if(!has_lo||t>c.lo){c.lo=t;c.enter=j;has_lo=true;}}
+                else if(slope<0){const S t=-offset/slope;if(!has_hi||t<c.hi){c.hi=t;c.leave=j;has_hi=true;}}
                 else if(offset<0)return {};
             }
-        if(!(c.lo<=c.hi)||!std::isfinite(c.lo)||!std::isfinite(c.hi))return {};
+        if(!has_lo||!has_hi||!(c.lo<=c.hi))return {};
+        if constexpr(std::is_same_v<S,double>)if(!std::isfinite(c.lo)||!std::isfinite(c.hi))return {};
         return c;
     }
     // Intersection of two counterclockwise polygons without collinear
@@ -431,7 +434,10 @@ template<class S> struct CycleRefinement {
     }
     // Intersection of two closed convex regions; p may also be a point or a
     // segment, whose edge halfplanes alone would describe all or a whole line.
-    static Polygon intersect(Polygon region,View p) {
+    // proposal: the result only proposes a cycle that a certificate checks
+    // (move_zero_blocks), so the fast intersection is also used in rational
+    // arithmetic; the common-region test of Step 1 keeps the exact clip.
+    static Polygon intersect(Polygon region,View p,bool proposal=false) {
         cycle_checkpoint();
         if(p.size()==1) {
             if(region.empty())return region;
@@ -465,7 +471,7 @@ template<class S> struct CycleRefinement {
         // shortcut drops (a construction difference only: in corpus case 538,
         // the same tree and bounds with 55 more oracle calls).
         if(region.size()>2&&(separates(p,region)||separates(region,p)))return {};
-        if constexpr(std::is_same_v<S,double>)
+        if(std::is_same_v<S,double>||proposal)
             if(region.size()>=kLogarithmicVertices&&p.size()>=kLogarithmicVertices&&strictly_convex(region)&&strictly_convex(p))
                 if(auto fast=intersect_convex(region,p))return std::move(*fast);
         for(size_t j=0;j<p.size()&&!region.empty();++j) {
@@ -505,7 +511,7 @@ template<class S> struct CycleRefinement {
                 Polygon computed;
                 if(!known) {
                     computed.assign(p[start].begin(),p[start].end());
-                    for(size_t r=1;r<count;++r)computed=intersect(std::move(computed),p[(start+r)%k]);
+                    for(size_t r=1;r<count;++r)computed=intersect(std::move(computed),p[(start+r)%k],true);
                 }
                 const Polygon &region=known?*known:computed;
                 if(!region.empty()) {

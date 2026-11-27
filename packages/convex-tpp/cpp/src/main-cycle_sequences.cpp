@@ -44,7 +44,7 @@ using Clock=std::chrono::steady_clock;
 double since(Clock::time_point began){return std::chrono::duration<double>(Clock::now()-began).count();}
 void json(std::ostream &out,double value){if(std::isfinite(value))out<<value;else out<<"null";}
 
-struct GurobiRun{int status=0;double objective=std::numeric_limits<double>::quiet_NaN(),build=0,optimize=0,total=0;};
+struct GurobiRun{int status=0;double objective=std::numeric_limits<double>::quiet_NaN(),build=0,optimize=0,total=0;std::vector<Vector2> points;};
 GurobiRun gurobi(const Polygons &p,GRBEnv &env) {
     GurobiRun run;const auto began=Clock::now();
     GRBModel model(env);model.set(GRB_IntParam_Threads,1);
@@ -77,6 +77,26 @@ GurobiRun gurobi(const Polygons &p,GRBEnv &env) {
     run.status=model.get(GRB_IntAttr_Status);
     if(model.get(GRB_IntAttr_SolCount))run.objective=model.get(GRB_DoubleAttr_ObjVal);
     run.total=since(began);
+    if(model.get(GRB_IntAttr_SolCount))
+        for(size_t i=0;i<k;++i)run.points.push_back({q[i][0].get(GRB_DoubleAttr_X),q[i][1].get(GRB_DoubleAttr_X)});
+    return run;
+}
+
+// The exact baseline of paper 1, Section 5.2: Gurobi's visit points, rebuilt
+// from their descriptor in rational arithmetic and certified exactly
+// (tpp_convex_certify_cycle_proposal). Only the certification is timed here;
+// the baseline's time is Gurobi's plus this one.
+struct CertifiedRun{tpp::ConvexCycleProposalResult result;double seconds=0,mean=0;size_t calls=0;bool ran=false;};
+CertifiedRun certify(const Polygons &p,const std::vector<Vector2> &points) {
+    CertifiedRun run;if(points.size()!=p.size())return run;
+    run.ran=true;auto began=Clock::now();
+    run.result=tpp::tpp_convex_certify_cycle_proposal(p,points);
+    run.seconds=since(began);
+    if(run.seconds<0.05) {
+        began=Clock::now();
+        do{tpp::tpp_convex_certify_cycle_proposal(p,points);++run.calls;}while(since(began)<0.05);
+        run.mean=since(began)/double(run.calls);
+    } else run.mean=run.seconds;
     return run;
 }
 
@@ -178,12 +198,20 @@ int main(int argc,char **argv) {
                     if(which<anchors.size())mine[which]=ours(p,seconds,gap,config=="tolerant",anchors[which]);
                     else socp=gurobi(p,env);
                 }
+                const CertifiedRun proof=config=="exact"?certify(p,socp.points):CertifiedRun{};
                 for(size_t a=0;a<anchors.size();++a) {
                     std::cout<<"{\"name\":\""<<name<<"\",\"k\":"<<p.size()<<",\"vertices\":"<<vertices<<",\"largest\":"<<largest
                         <<",\"repeat\":"<<repeat<<",\"config\":\""<<config<<"\",\"anchor_rule\":\""<<anchor_names[a]<<"\",\"gap\":"<<gap;
                     print(mine[a]);
                     std::cout<<",\"gurobi\":{\"status\":"<<socp.status<<",\"objective\":";json(std::cout,socp.objective);
-                    std::cout<<",\"build\":"<<socp.build<<",\"optimize\":"<<socp.optimize<<",\"total\":"<<socp.total<<"}}"<<std::endl;
+                    std::cout<<",\"build\":"<<socp.build<<",\"optimize\":"<<socp.optimize<<",\"total\":"<<socp.total;
+                    if(proof.ran) {
+                        std::cout<<",\"certified\":{\"status\":"<<int(proof.result.status)<<",\"seconds\":"<<proof.seconds
+                            <<",\"mean\":"<<proof.mean<<",\"calls\":"<<proof.calls<<",\"rebuilds\":"<<proof.result.rebuilds<<",\"upper\":";
+                        json(std::cout,proof.result.status==tpp::ConvexCycleStatus::Optimal?proof.result.certificate.upper_bound:NAN);
+                        std::cout<<"}";
+                    }
+                    std::cout<<"}}"<<std::endl;
                 }
             }
         }

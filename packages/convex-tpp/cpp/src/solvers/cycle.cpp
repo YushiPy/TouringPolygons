@@ -1,3 +1,4 @@
+#include <random>
 #include "tpp/convex/cycle.h"
 #include "tpp/convex/float_oracle.h"
 #include "tpp/convex/detail/rational_disjoint.h"
@@ -125,20 +126,47 @@ void search_cycle(const std::vector<std::vector<ConvexArithmeticPoint<S>>> &poly
         if constexpr(std::is_same_v<Step,std::nullptr_t>)return false;
         else return !q.empty()&&step(j,q,next);
     };
-    for(std::size_t j=0;j<m;++j) {
+    // Subgradient cuts (paper 1, Lemma 4.3): the anchored route at x has
+    // nonzero segments at x, because the polygons are disjoint, and
+    // g = u_in - u_out is a subgradient of F_i at x, so every minimizer y has
+    // g.(y-x) <= 0. An edge whose two ends lie strictly beyond is discarded,
+    // and a vertex is evaluated only while an edge at it remains. Each
+    // evaluation takes the middle vertex of the longest run of vertices still
+    // needed, so a cut removes at least half of that run.
+    std::vector<char> edge_alive(m,1),tried(m,0);
+    auto needed=[&](std::size_t j){return !tried[j]&&(edge_alive[j]||edge_alive[(j+m-1)%m]);};
+    for(;;) {
+        detail::cycle_checkpoint();
+        std::size_t best_start=0,best_length=0;
+        {
+            std::size_t first=m;
+            for(std::size_t j=0;j<m;++j)if(!needed(j)){first=j;break;}
+            if(first==m){best_start=0;best_length=m;}
+            else for(std::size_t step=1,run=0,start=0;step<=m;++step) {
+                const std::size_t j=(first+step)%m;
+                if(needed(j)){if(run==0)start=j;++run;if(run>best_length){best_length=run;best_start=start;}}
+                else run=0;
+            }
+        }
+        if(best_length==0)break;
+        const std::size_t j=(best_start+best_length/2)%m;
+        tried[j]=1;
         try {
             const auto q=evaluate(anchor[j]);if(solved())return;
             at_vertex[j]=q;
             forward[j]=support_sign(q,anchor_index,anchor[(j+1)%m]-anchor[j]);
             backward[j]=support_sign(q,anchor_index,anchor[j]-anchor[(j+m-1)%m]);
             available[j]=true;
+            std::vector<int> side(m);
+            for(std::size_t v=0;v<m;++v)side[v]=v==j?0:support_sign(q,anchor_index,anchor[v]-anchor[j]);
+            for(std::size_t e=0;e<m;++e)if(edge_alive[e]&&side[e]>0&&side[(e+1)%m]>0)edge_alive[e]=0;
         } catch(const std::exception &error) {
             if(!floating_failure)throw;
             *floating_failure=error.what();
         }
     }
     for(std::size_t j=0;j<m;++j) {
-        if(!available[j]||!available[(j+1)%m]||forward[j]>=0||backward[(j+1)%m]<=0)continue;
+        if(!edge_alive[j]||!available[j]||!available[(j+1)%m]||forward[j]>=0||backward[(j+1)%m]<=0)continue;
         const auto a=anchor[j],edge=anchor[(j+1)%m]-a;
         S left=0,right=1;std::optional<S> next;
         auto inside=[&]{return next&&*next>left&&*next<right;};
@@ -816,15 +844,72 @@ int exact_orientation(Vector2 a,Vector2 b,Vector2 q) {
 // point. Two convex sets with disjoint interiors are weakly separated by the
 // line of an edge of one of them (for a segment, its own line), so q misses
 // int(p) exactly when such a line leaves them on opposite closed sides.
+// The vertex of the convex polygon r (counterclockwise) farthest to the left of
+// the directed line from a to b, decided exactly. The search starts at the
+// binary64 guess `start` and climbs to a strictly better neighbor, crossing
+// plateaus of equal value, so the guess only saves time: along a convex
+// polygon the signed distance to a line is unimodal.
+size_t farthest_left(Vector2 a,Vector2 b,const std::vector<Vector2> &r,size_t start) {
+    const size_t n=r.size();
+    // The sign of (b-a) x (r[w]-r[v]): binary64 when its value exceeds an a
+    // priori bound of its rounding error (two rounded differences, two
+    // products and a subtraction: under 4u of the sum of the products' sizes,
+    // taken as 8u here), and in rational arithmetic otherwise.
+    const double dx=b.x-a.x,dy=b.y-a.y;
+    auto compare=[&](size_t w,size_t v) {
+        const double ex=r[w].x-r[v].x,ey=r[w].y-r[v].y,t1=dx*ey,t2=dy*ex,size=std::abs(t1)+std::abs(t2);
+        const double c=t1-t2;
+        if(size>0x1p-900&&std::abs(c)>0x1p-50*size)return c>0?1:-1;
+        const R exact=(Point(b)-Point(a)).cross(Point(r[w])-Point(r[v]));return exact>0?1:exact<0?-1:0;
+    };
+    size_t v=start%n;
+    for(size_t moves=0;moves<2*n;++moves) {
+        const size_t f=(v+1)%n,g=(v+n-1)%n;
+        if(compare(f,v)>0){v=f;continue;}
+        if(compare(g,v)>0){v=g;continue;}
+        size_t w=f,count=0;
+        while(count<n&&compare(w,v)==0){w=(w+1)%n;++count;}
+        if(count<n&&compare(w,v)>0){v=w;continue;}
+        break;
+    }
+    return v;
+}
+// Whether no vertex of r lies strictly to the left (side 1) or strictly to the
+// right (side -1) of the line from a to b; guess is updated for the next call.
+bool closed_outside(Vector2 a,Vector2 b,const std::vector<Vector2> &r,int side,size_t &guess) {
+    const Vector2 from=side>0?a:b,to=side>0?b:a;
+    const Vector2 d=to-from;
+    // Binary64 rotating pointer: advance while the next vertex is farther.
+    const size_t n=r.size();
+    for(size_t steps=0;steps<n;++steps) {
+        const size_t f=(guess+1)%n;
+        if(d.cross(r[f]-r[guess])>0)guess=f;else break;
+    }
+    if(exact_orientation(from,to,r[guess])>0)return false; // a vertex strictly left
+    guess=farthest_left(from,to,r,guess);
+    return exact_orientation(from,to,r[guess])<=0;
+}
 bool meets_interior(const std::vector<Vector2> &p,const std::vector<Vector2> &q) {
     if(p.size()<3)return false; // no interior
-    auto outside=[](Vector2 a,Vector2 b,const std::vector<Vector2> &r,int side) {
-        for(const auto &v:r)if(exact_orientation(a,b,v)*side>0)return false;
-        return true;
-    };
-    for(size_t j=0;j<p.size();++j)if(outside(p[j],p[(j+1)%p.size()],q,1))return false;
-    if(q.size()==2)return !outside(q[0],q[1],p,1)&&!outside(q[0],q[1],p,-1);
-    if(q.size()>=3)for(size_t j=0;j<q.size();++j)if(outside(q[j],q[(j+1)%q.size()],p,1))return false;
+    // Rotating calipers: as the edges of p turn counterclockwise, the vertex
+    // of q farthest to their left moves counterclockwise, so the guesses
+    // advance about |p|+|q| steps in all, and every decision is exact.
+    size_t guess=0;
+    {
+        const Vector2 d=p[1]-p[0];double best=-INFINITY;
+        for(size_t v=0;v<q.size();++v){const double c=d.cross(q[v]-p[0]);if(c>best){best=c;guess=v;}}
+    }
+    for(size_t j=0;j<p.size();++j)if(closed_outside(p[j],p[(j+1)%p.size()],q,1,guess))return false;
+    if(q.size()==2) {
+        size_t g1=0,g2=0;
+        return !closed_outside(q[0],q[1],p,1,g1)&&!closed_outside(q[0],q[1],p,-1,g2);
+    }
+    if(q.size()>=3) {
+        size_t back=0;
+        const Vector2 d=q[1]-q[0];double best=-INFINITY;
+        for(size_t v=0;v<p.size();++v){const double c=d.cross(p[v]-q[0]);if(c>best){best=c;back=v;}}
+        for(size_t j=0;j<q.size();++j)if(closed_outside(q[j],q[(j+1)%q.size()],p,1,back))return false;
+    }
     return true;
 }
 } // namespace
@@ -861,11 +946,75 @@ std::optional<size_t> eligible_anchor(const ConvexRationalPolygons &p,ConvexCycl
 } // namespace detail
 
 namespace {
-ConvexRationalPolygon common_region(const ConvexRationalPolygons &p) {
-    auto region=p.front();
-    for(size_t i=1;i<p.size()&&!region.empty();++i)
-        region=detail::CycleRefinement<R>::intersect(std::move(region),p[i]);
-    return region;
+// A point common to all regions, or nothing, decided exactly: Seidel's
+// randomized incremental linear program in the plane, over the halfplanes of
+// every edge (and the lines and ends of segments, and the coordinates of
+// points), with the lexicographic maximum of (x, y) as the unique optimum. Its
+// expected time is linear in the number of halfplanes, where clipping the
+// regions one by another took quadratic time on regions with many vertices.
+// The order is random but fixed, so the result is reproducible.
+// With `leading`, the program first runs on the first `leading` regions alone:
+// when they have no common point, neither do all of them. Callers pass the
+// regions after which the binary64 intersection became empty, which on
+// small polygons finds the empty set sooner than the program over every
+// halfplane. The answer is the same.
+ConvexRationalPolygon common_region_of(const ConvexRationalPolygons &p) {
+    struct Half{Point g;R h;}; // g.x >= h
+    std::vector<Half> halves;
+    R lo_x=0,lo_y=0,hi_x=0,hi_y=0;bool first=true;
+    for(const auto &region:p)for(const auto &v:region) {
+        if(first){lo_x=hi_x=v.x;lo_y=hi_y=v.y;first=false;}
+        lo_x=std::min(lo_x,v.x);hi_x=std::max(hi_x,v.x);lo_y=std::min(lo_y,v.y);hi_y=std::max(hi_y,v.y);
+    }
+    if(first)return {};
+    lo_x-=1;lo_y-=1;hi_x+=1;hi_y+=1;
+    for(const auto &region:p) {
+        const size_t m=region.size();
+        if(m==0)return {};
+        if(m==1) {
+            const Point c=region[0];
+            halves.push_back({Point{R(1),R(0)},c.x});halves.push_back({Point{R(-1),R(0)},-c.x});
+            halves.push_back({Point{R(0),R(1)},c.y});halves.push_back({Point{R(0),R(-1)},-c.y});
+        } else if(m==2) {
+            const Point a=region[0],b=region[1],e=b-a,g{-e.y,e.x};
+            halves.push_back({g,g.dot(a)});halves.push_back({Point{-g.x,-g.y},-g.dot(a)});
+            halves.push_back({e,e.dot(a)});halves.push_back({Point{-e.x,-e.y},-e.dot(b)});
+        } else for(size_t j=0;j<m;++j) {
+            const Point a=region[j],e=region[(j+1)%m]-a,g{-e.y,e.x};
+            halves.push_back({g,g.dot(a)});
+        }
+    }
+    std::mt19937 shuffle_rng(20261127);
+    std::shuffle(halves.begin(),halves.end(),shuffle_rng);
+    const std::array<Half,4> box{Half{Point{R(1),R(0)},lo_x},Half{Point{R(-1),R(0)},-hi_x},Half{Point{R(0),R(1)},lo_y},Half{Point{R(0),R(-1)},-hi_y}};
+    Point v{hi_x,hi_y};
+    for(size_t i=0;i<halves.size();++i) {
+        if(i%256==0)detail::cycle_checkpoint();
+        const auto &[g,h]=halves[i];
+        if(g.dot(v)>=h)continue;
+        // The new optimum lies on the line g.x = h: a linear program in t.
+        const Point u{-g.y,g.x};
+        const Point origin=g.x!=0?Point{h/g.x,R(0)}:Point{R(0),h/g.y};
+        bool has_lo=false,has_hi=false;R t_lo=0,t_hi=0;
+        auto bound=[&](const Half &c)->bool {
+            const R slope=c.g.dot(u),rhs=c.h-c.g.dot(origin);
+            if(slope>0){const R t=rhs/slope;if(!has_lo||t>t_lo){t_lo=t;has_lo=true;}}
+            else if(slope<0){const R t=rhs/slope;if(!has_hi||t<t_hi){t_hi=t;has_hi=true;}}
+            else if(rhs>0)return false;
+            return true;
+        };
+        for(const auto &c:box)if(!bound(c))return {};
+        for(size_t j=0;j<i;++j)if(!bound(halves[j]))return {};
+        if(!has_lo||!has_hi||t_lo>t_hi)return {};
+        const bool up=u.x!=0?u.x>0:u.y>0;
+        const R t=up?t_hi:t_lo;
+        v=origin+u*t;
+    }
+    return {v};
+}
+ConvexRationalPolygon common_region(const ConvexRationalPolygons &p,size_t leading=0) {
+    if(leading>=2&&leading<p.size()&&common_region_of(ConvexRationalPolygons(p.begin(),p.begin()+ptrdiff_t(leading))).empty())return {};
+    return common_region_of(p);
 }
 // The complete boundary-anchor reduction, shared by both arithmetic backends.
 // The independent restriction checker includes the zero-link subgradient disk.
@@ -923,37 +1072,82 @@ void search_intersecting_boundaries(const std::vector<std::vector<ConvexArithmet
             while(after!=anchor&&q[after]==q[anchor])after=(after+1)%k;
             return direction_support_sign(q[anchor]-q[before],q[after]-q[anchor],e);
         };
-        // Every piece end of the boundary is evaluated before any piece is
-        // bisected (ends_first): the ends are TPPs the search needs anyway,
-        // and an optimal visit point at a vertex or crossing closes the
-        // search before any bisection. A shared vertex is evaluated once.
+        // The boundary is split into pieces at its crossings with the other
+        // boundaries. Candidate edges of the other polygons come from a grid
+        // of their bounding boxes, so splitting takes about linear time
+        // instead of testing every pair of edges. The tests themselves are
+        // exact, as before; the grid only skips pairs whose boxes, widened
+        // by a relative margin, do not meet.
         const size_t edges=p[anchor].size()==2?1:p[anchor].size();
-        std::vector<std::vector<S>> all_cuts(edges);
-        std::vector<std::vector<Polygon>> all_ends(edges);
-        std::vector<std::pair<P,Polygon>> known;
-        auto bisect_edge=[&](size_t j)->bool {
+        auto as_double=[](const S &v)->double{if constexpr(std::is_same_v<S,double>)return v;else return v.template convert_to<double>();};
+        struct Box{double x0,y0,x1,y1;};
+        auto box=[&](const P &u,const P &w)->Box{
+            const double ux=as_double(u.x),uy=as_double(u.y),wx=as_double(w.x),wy=as_double(w.y);
+            Box b{std::min(ux,wx),std::min(uy,wy),std::max(ux,wx),std::max(uy,wy)};
+            const double pad=1e-9*(1+std::max({std::abs(b.x0),std::abs(b.y0),std::abs(b.x1),std::abs(b.y1)}));
+            b.x0-=pad;b.y0-=pad;b.x1+=pad;b.y1+=pad;return b;
+        };
+        std::vector<std::pair<size_t,size_t>> others;std::vector<Box> other_boxes;
+        double lo_x=INFINITY,lo_y=INFINITY,hi_x=-INFINITY,hi_y=-INFINITY;
+        for(size_t i=0;i<k;++i)if(i!=anchor)for(size_t h=0;h<p[i].size();++h) {
+            others.push_back({i,h});other_boxes.push_back(box(p[i][h],p[i][(h+1)%p[i].size()]));
+            const auto &b=other_boxes.back();lo_x=std::min(lo_x,b.x0);lo_y=std::min(lo_y,b.y0);hi_x=std::max(hi_x,b.x1);hi_y=std::max(hi_y,b.y1);
+        }
+        const size_t cells_per_side=std::max<size_t>(1,std::min<size_t>(4096,size_t(std::sqrt(double(others.size()+1)))));
+        const double cell_w=std::max((hi_x-lo_x)/double(cells_per_side),1e-300),cell_h=std::max((hi_y-lo_y)/double(cells_per_side),1e-300);
+        auto cell_range=[&](const Box &b,size_t &x0,size_t &x1,size_t &y0,size_t &y1) {
+            auto clamp=[&](double v,double lo,double w){const double c=std::floor((v-lo)/w);return size_t(std::clamp(c,0.0,double(cells_per_side-1)));};
+            x0=clamp(b.x0,lo_x,cell_w);x1=clamp(b.x1,lo_x,cell_w);y0=clamp(b.y0,lo_y,cell_h);y1=clamp(b.y1,lo_y,cell_h);
+        };
+        std::vector<std::vector<size_t>> grid(cells_per_side*cells_per_side);
+        for(size_t o=0;o<others.size();++o) {
+            size_t x0,x1,y0,y1;cell_range(other_boxes[o],x0,x1,y0,y1);
+            for(size_t x=x0;x<=x1;++x)for(size_t y=y0;y<=y1;++y)grid[x*cells_per_side+y].push_back(o);
+        }
+        std::vector<size_t> stamp(others.size(),size_t(-1));
+        auto split_edge=[&](size_t j) {
             const P a=p[anchor][j],e=p[anchor][(j+1)%p[anchor].size()]-a;
-            const auto &cuts=all_cuts[j];const auto &ends=all_ends[j];
-            for(size_t r=1;r<cuts.size();++r) {
-                if(ends[r-1].empty()||ends[r].empty())continue;
-                S left=cuts[r-1],right=cuts[r];
-                if(restricted(anchor,ends[r-1],a+e*left,a+e*right)||
-                   restricted(anchor,ends[r],a+e*left,a+e*right))continue;
+            std::vector<S> cuts{0,1};
+            const Box mine=box(a,a+e);
+            if(!(mine.x1<lo_x||mine.x0>hi_x||mine.y1<lo_y||mine.y0>hi_y)) {
+                size_t x0,x1,y0,y1;cell_range(mine,x0,x1,y0,y1);
+                for(size_t x=x0;x<=x1;++x)for(size_t y=y0;y<=y1;++y)for(const size_t o:grid[x*cells_per_side+y]) {
+                    if(stamp[o]==j)continue;
+                    stamp[o]=j;
+                    const auto &ob=other_boxes[o];
+                    if(ob.x1<mine.x0||ob.x0>mine.x1||ob.y1<mine.y0||ob.y0>mine.y1)continue;
+                    const auto [i,h]=others[o];
+                    const P b=p[i][h],f=p[i][(h+1)%p[i].size()]-b;const S determinant=e.cross(f);
+                    if(determinant!=0) {
+                        const S t=(b-a).cross(f)/determinant,u=(b-a).cross(e)/determinant;
+                        if(t>0&&t<1&&u>=0&&u<=1)cuts.push_back(t);
+                    } else if(e.cross(b-a)==0) {
+                        const S t=(b-a).dot(e)/e.dot(e);if(t>0&&t<1)cuts.push_back(t);
+                    }
+                }
+            }
+            std::sort(cuts.begin(),cuts.end());cuts.erase(std::unique(cuts.begin(),cuts.end()),cuts.end());
+            return cuts;
+        };
+        auto bisect_piece=[&](size_t j,S left,S right,const Polygon &end_left,const Polygon &end_right)->bool {
+            const P a=p[anchor][j],e=p[anchor][(j+1)%p[anchor].size()]-a;
+                if(restricted(anchor,end_left,a+e*left,a+e*right)||
+                   restricted(anchor,end_right,a+e*left,a+e*right))return false;
                 try {
-                    if(derivative(ends[r-1],e)>=0||derivative(ends[r],e)<=0)continue;
+                    if(derivative(end_left,e)>=0||derivative(end_right,e)<=0)return false;
                     std::optional<S> next;
                     auto inside=[&]{return next&&*next>left&&*next<right;};
                     // As in search_cycle: a fixed point at an end ends only this piece.
-                    if(step(anchor,j,ends[r-1],next)){if(solved())return true;continue;}
-                    if(!inside()&&step(anchor,j,ends[r],next)){if(solved())return true;continue;}
+                    if(step(anchor,j,end_left,next)){return solved();}
+                    if(!inside()&&step(anchor,j,end_right,next)){return solved();}
                     if constexpr(!std::is_same_v<Endpoint,std::nullptr_t>)
-                        if(endpoint(anchor,ends[r-1],ends[r],a+e*left,a+e*right)){if(solved())return true;continue;}
+                        if(endpoint(anchor,end_left,end_right,a+e*left,a+e*right)){return solved();}
                     // A complete endpoint restriction certificate handles the
                     // nondifferentiable endpoints. Otherwise the minimizer is
                     // interior and the endpoint subgradients have strict signs.
                     std::size_t closed_form_run=0;
                     // The route at the right end of the bracket (see end_steps in search_cycle).
-                    Polygon right_route=ends[r];bool right_moved=true;
+                    Polygon right_route=end_right;bool right_moved=true;
                     for(;;) {
                         detail::cycle_checkpoint();
                         auto probe=[&](const S &t) {
@@ -989,41 +1183,86 @@ void search_intersecting_boundaries(const std::vector<std::vector<ConvexArithmet
                     }
                     if(solved())return true;
                 } catch(const std::runtime_error &error){diagnostic=error.what();}
-            }
             return false;
         };
-        auto evaluate_edge=[&](size_t j)->bool {
+        std::vector<std::vector<S>> all_cuts(edges);
+        for(size_t j=0;j<edges;++j)all_cuts[j]=split_edge(j);
+        auto end_route=[&](const P &point,Polygon &route)->bool {
+            try {
+                if(point==p[anchor].front()&&!first_contacts[anchor].empty())route=first_contacts[anchor];
+                else {route=evaluate(anchor,point);if(solved()||refine(route))return true;}
+            } catch(const std::runtime_error &error){diagnostic=error.what();route.clear();}
+            return false;
+        };
+        if(!ends_first) {
+            // Edge by edge: the ends of each piece, then its search.
+            for(size_t j=0;j<edges;++j) {
+                const P a=p[anchor][j],e=p[anchor][(j+1)%p[anchor].size()]-a;
+                const auto &cuts=all_cuts[j];std::vector<Polygon> ends(cuts.size());
+                for(size_t r=0;r<cuts.size();++r)if(end_route(a+e*cuts[r],ends[r]))return;
+                for(size_t r=1;r<cuts.size();++r)
+                    if(!ends[r-1].empty()&&!ends[r].empty()&&bisect_piece(j,cuts[r-1],cuts[r],ends[r-1],ends[r]))return;
+            }
+            continue;
+        }
+        // The piece ends in boundary order; for a polygon the list is cyclic
+        // and the end t=1 of an edge is the start of the next one.
+        struct End{size_t edge;S t;P point;};
+        std::vector<End> points;
+        for(size_t j=0;j<edges;++j) {
             const P a=p[anchor][j],e=p[anchor][(j+1)%p[anchor].size()]-a;
-            std::vector<S> cuts{0,1};
-            for(size_t i=0;i<k;++i)if(i!=anchor)for(size_t h=0;h<p[i].size();++h) {
-                const P b=p[i][h],f=p[i][(h+1)%p[i].size()]-b;const S determinant=e.cross(f);
-                if(determinant!=0) {
-                    const S t=(b-a).cross(f)/determinant,u=(b-a).cross(e)/determinant;
-                    if(t>0&&t<1&&u>=0&&u<=1)cuts.push_back(t);
-                } else if(e.cross(b-a)==0) {
-                    const S t=(b-a).dot(e)/e.dot(e);if(t>0&&t<1)cuts.push_back(t);
+            const size_t last=edges==1?all_cuts[j].size():all_cuts[j].size()-1;
+            for(size_t r=0;r<last;++r)points.push_back({j,all_cuts[j][r],a+e*all_cuts[j][r]});
+        }
+        const bool cyclic=edges>1;const size_t n_points=points.size(),n_pieces=cyclic?n_points:n_points-1;
+        std::vector<Polygon> routes(n_points);std::vector<char> tried(n_points,0),alive(n_pieces,1);
+        auto piece_after=[&](size_t v)->std::optional<size_t>{if(cyclic||v+1<n_points)return v;return std::nullopt;};
+        auto piece_before=[&](size_t v)->std::optional<size_t>{if(cyclic)return (v+n_pieces-1)%n_pieces;if(v>0)return v-1;return std::nullopt;};
+        auto needed=[&](size_t v){
+            if(tried[v])return false;
+            const auto b=piece_before(v),a=piece_after(v);
+            return (b&&alive[*b])||(a&&alive[*a]);
+        };
+        // Subgradient cuts (paper 1, Lemma 4.3), when the anchored route has
+        // nonzero segments at its anchor: every minimizer y has
+        // (u_in - u_out).(y - x) <= 0, and a piece whose two ends lie strictly
+        // beyond is discarded. The next end is the middle of the longest run
+        // of ends still needed, so each cut removes at least half of it.
+        for(;;) {
+            detail::cycle_checkpoint();
+            size_t best_start=0,best_length=0;
+            {
+                size_t run=0,start=0;
+                const size_t span=cyclic?2*n_points:n_points;
+                for(size_t step=0;step<span;++step) {
+                    const size_t v=step%n_points;
+                    if(needed(v)){if(run==0)start=v;++run;if(run>best_length&&run<=n_points){best_length=run;best_start=start;}}
+                    else run=0;
                 }
             }
-            std::sort(cuts.begin(),cuts.end());cuts.erase(std::unique(cuts.begin(),cuts.end()),cuts.end());
-            std::vector<Polygon> ends(cuts.size());
-            for(size_t r=0;r<cuts.size();++r)try {
-                const P point=a+e*cuts[r];
-                if(point==p[anchor].front()&&!first_contacts[anchor].empty())
-                    ends[r]=first_contacts[anchor];
-                else if(auto hit=std::find_if(known.begin(),known.end(),[&](const auto &v){return v.first==point;});ends_first&&hit!=known.end())
-                    ends[r]=hit->second;
-                else {
-                    ends[r]=evaluate(anchor,point);if(solved()||refine(ends[r]))return true;
-                    if(ends_first)known.emplace_back(point,ends[r]);
-                }
-            } catch(const std::runtime_error &error){diagnostic=error.what();}
-            all_cuts[j]=std::move(cuts);all_ends[j]=std::move(ends);
-            return false;
-        };
-        if(ends_first) {
-            for(size_t j=0;j<edges;++j)if(evaluate_edge(j))return;
-            for(size_t j=0;j<edges;++j)if(bisect_edge(j))return;
-        } else for(size_t j=0;j<edges;++j)if(evaluate_edge(j)||bisect_edge(j))return;
+            if(best_length==0)break;
+            const size_t v=(best_start+best_length/2)%n_points;
+            tried[v]=1;
+            if(end_route(points[v].point,routes[v]))return;
+            const Polygon &q=routes[v];
+            if(q.empty())continue;
+            const P x=points[v].point;
+            const size_t before=(anchor+k-1)%k,after=(anchor+1)%k;
+            if(q[before]==q[anchor]||q[after]==q[anchor])continue;
+            try {
+                std::vector<int> side(n_points);
+                for(size_t w=0;w<n_points;++w)side[w]=w==v||points[w].point==x?0:direction_support_sign(q[anchor]-q[before],q[after]-q[anchor],points[w].point-x);
+                for(size_t c=0;c<n_pieces;++c)if(alive[c]&&side[c]>0&&side[(c+1)%n_points]>0)alive[c]=0;
+            } catch(const std::runtime_error &){}
+        }
+        for(size_t c=0;c<n_pieces;++c) {
+            if(!alive[c])continue;
+            const size_t w=(c+1)%n_points;
+            if(routes[c].empty()||routes[w].empty())continue;
+            const size_t j=points[c].edge;
+            const S right=points[w].edge==j&&(!cyclic||w!=0||edges==1)&&points[w].t>points[c].t?points[w].t:S(1);
+            if(bisect_piece(j,points[c].t,right,routes[c],routes[w]))return;
+        }
     }
 }
 ConvexCycleResult solve_intersecting_cycle(ConvexCycleResult &result,const ConvexRationalPolygons &p,bool refine=true,
@@ -1299,7 +1538,8 @@ ConvexCycleDoubleResult solve_cycle_double_exact(ConvexCycleDoubleResult &result
             if(consider(options.initial_contacts)){++result.initial_contact_accepts;return result;}
         }
         auto joint=p.front();
-        for(size_t i=1;i<p.size()&&!joint.empty();++i)joint=Kernel::intersect(std::move(joint),p[i]);
+        size_t leading=1; // the regions whose binary64 intersection was computed
+        for(;leading<p.size()&&!joint.empty();++leading)joint=Kernel::intersect(std::move(joint),p[leading]);
         if(!joint.empty()&&consider(std::vector<Vector2>(p.size(),joint.front().external()))) {
             if(method){result.method_step=1;record_exact_contacts(result);}
             return result;
@@ -1307,7 +1547,7 @@ ConvexCycleDoubleResult solve_cycle_double_exact(ConvexCycleDoubleResult &result
         if(options.recover_arithmetic_failures&&!options.proposal_only) {
             // A common point may exist but have no binary64 representation.
             // Resolve that zero-cycle feature before attempting anchor search.
-            const auto exact_joint=common_region(normalized);
+            const auto exact_joint=common_region(normalized,joint.empty()?leading:0);
             if(!exact_joint.empty()) {
                 ++result.rational_cycle_recoveries;++result.oracle_calls;++result.certificate_checks;
                 const auto q=ConvexRationalPolygon(p.size(),exact_joint.front());
@@ -1775,6 +2015,38 @@ bool float_first_boundary_search(ConvexCycleDoubleResult &result,const std::vect
     return closed&&finish(2);
 }
 } // namespace
+
+ConvexCycleProposalResult tpp_convex_certify_cycle_proposal(const std::vector<std::vector<Vector2>> &input,
+        const std::vector<Vector2> &contacts) {
+    ConvexCycleProposalResult result;
+    if(input.size()<2||contacts.size()!=input.size()||
+       !std::all_of(contacts.begin(),contacts.end(),[](const Vector2 &v){return v.is_finite();})) {
+        result.status=ConvexCycleStatus::InvalidInput;return result;
+    }
+    ConvexRationalPolygons normalized;std::vector<std::vector<Vector2>> binary;
+    try {detail::prepare_cycle_polygons(input,normalized,false,&binary);}
+    catch(const std::invalid_argument &error) {
+        result.status=ConvexCycleStatus::InvalidInput;result.diagnostic=error.what();return result;
+    }
+    std::vector<DPolygon> p;
+    for(const auto &polygon:binary){auto &q=p.emplace_back();for(const auto &v:polygon)q.emplace_back(v);}
+    DPolygon q;for(const auto &v:contacts)q.emplace_back(v);
+    const ConvexCycleCertificateGeometry prepared(normalized);
+    const auto feature=local_descriptor(p,q,0,kLocal);
+    DescriptorRebuilds rebuilds;rebuilds.pivots=true;rebuilds.straight=true;
+    auto verify=[&](const ConvexRationalPolygon &c){return detail::cycle_optimality_certificate(prepared,c);};
+    try {
+        for(std::size_t anchor=0;anchor<p.size();++anchor) {
+            ConvexRationalPolygon exact;ConvexCycleCertificateResult certificate;
+            if(rebuilds(normalized,anchor,feature,feature[anchor],q,verify,result.rebuilds,exact,certificate)) {
+                result.status=ConvexCycleStatus::Optimal;result.exact_contacts=std::move(exact);result.certificate=certificate;
+                return result;
+            }
+        }
+    } catch(const std::exception &error){result.diagnostic=error.what();}
+    if(result.diagnostic.empty())result.diagnostic="No rebuilt descriptor passed the exact certificate";
+    return result;
+}
 
 ConvexCycleDoubleResult tpp_convex_solve_cycle_double(const std::vector<std::vector<Vector2>> &input,
         const ConvexCycleDoubleOptions &options) {

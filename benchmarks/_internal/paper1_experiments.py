@@ -433,11 +433,13 @@ STEP_TOOLS = {
 	"vertex-scaling": ["tpp-convex-vertex-scaling"], "vertex-scaling-fine": ["tpp-convex-vertex-scaling"],
 	"anchor-probes": ["tpp-convex-anchor-probes"], "cycles": [CYCLE_TOOL],
 	"paths-scaling": ["tpp-convex-path-benchmark"], "cycles-tolerant": [CYCLE_TOOL],
+	"cycles-large": [CYCLE_TOOL], "cycles-large-tolerant": [CYCLE_TOOL],
 }
 PROFILES = {"paper": ["build", "check", "paths-random", "paths-fine", "vertex-scaling-fine", "paths-rational",
-	"paths-targets", "paths-proposals", "cycles", "cycles-tolerant", "paths-scaling", "summary"],
+	"paths-targets", "paths-proposals", "cycles", "cycles-tolerant", "cycles-large", "cycles-large-tolerant",
+	"paths-scaling", "summary"],
 	"scaling": ["build", "check", "paths-scaling", "summary"],
-	"cycles": ["build", "check", "cycles", "cycles-tolerant", "summary"]}
+	"cycles": ["build", "check", "cycles", "cycles-tolerant", "cycles-large", "cycles-large-tolerant", "summary"]}
 
 
 def step_build(context: Context) -> dict:
@@ -763,6 +765,13 @@ def step_cycles_tolerant(context: Context) -> dict:
 	"""The same cycles with a gap matched to Gurobi's default tolerance."""
 	import paper1_cycles
 	return paper1_cycles.step_cycles(context, "cycles-tolerant", "tolerant")
+
+
+def step_cycles_large(context: Context, tolerant: bool = False) -> dict:
+	"""Cycles through polygons with many vertices, exact or tolerant."""
+	import paper1_cycles
+	return paper1_cycles.step_cycles(context, "cycles-large-tolerant" if tolerant else "cycles-large",
+		"tolerant" if tolerant else "exact", large=True)
 
 
 def step_anchor_probes(context: Context) -> dict:
@@ -1123,6 +1132,11 @@ def summarize(context: Context) -> dict:
 	if rows:
 		import paper1_cycles
 		summary["cycles_tolerant"] = paper1_cycles.summarize_cycles(rows)
+	for step, key in (("cycles-large", "cycles_large"), ("cycles-large-tolerant", "cycles_large_tolerant")):
+		rows = jsonl(sorted((out / step / "results").glob("*.jsonl")))
+		if rows:
+			import paper1_cycles
+			summary[key] = paper1_cycles.summarize_large(rows)
 	rows = jsonl(sorted((out / "paths-scaling" / "results").glob("*.jsonl")))
 	if rows:
 		table = scaling_table(rows)
@@ -1327,7 +1341,7 @@ def write_saved(context: Context, summary: dict) -> Path:
 		"gurobi_probe": json.loads(check.read_text()).get("gurobi_probe") if check.exists() else None}
 	steps = {}
 	for step in ("paths-random", "paths-fine", "vertex-scaling-fine", "paths-rational", "paths-targets", "paths-proposals",
-			"cycles", "cycles-tolerant", "paths-scaling"):
+			"cycles", "cycles-tolerant", "cycles-large", "cycles-large-tolerant", "paths-scaling"):
 		done = out / step / "done.json"
 		if done.exists():
 			record = json.loads(done.read_text())
@@ -1344,7 +1358,8 @@ def write_saved(context: Context, summary: dict) -> Path:
 	if rows:
 		saved["vertex_scaling_fine"] = summary.get("vertex_scaling_fine")
 		saved_vertex_scaling_fine(rows, directory)
-	for key in ("paths_rational", "paths_targets", "paths_proposals", "cycles", "cycles_tolerant"):
+	for key in ("paths_rational", "paths_targets", "paths_proposals", "cycles", "cycles_tolerant", "cycles_large",
+			"cycles_large_tolerant"):
 		if summary.get(key):
 			saved[key] = summary[key]
 	if summary.get("cycles"):
@@ -1353,6 +1368,10 @@ def write_saved(context: Context, summary: dict) -> Path:
 	if summary.get("cycles_tolerant"):
 		import paper1_cycles
 		paper1_cycles.write_per_instance(out, directory / "cycles-tolerant-per-instance.csv", "cycles-tolerant")
+	for step, key in (("cycles-large", "cycles_large"), ("cycles-large-tolerant", "cycles_large_tolerant")):
+		if summary.get(key):
+			import paper1_cycles
+			paper1_cycles.write_per_instance(out, directory / f"{step}-per-instance.csv", step)
 	if summary.get("paths_scaling"):
 		scaling = summary["paths_scaling"]
 		saved["paths_scaling"] = {"instances": scaling["instances"], "slopes": scaling["slopes"],
@@ -1407,6 +1426,8 @@ STEPS: list[tuple[str, Callable[[Context], dict]]] = [
 	("paths-proposals", step_paths_proposals),
 	("cycles", step_cycles),
 	("cycles-tolerant", step_cycles_tolerant),
+	("cycles-large", step_cycles_large),
+	("cycles-large-tolerant", lambda context: step_cycles_large(context, tolerant=True)),
 	("paths-scaling", step_paths_scaling),
 	("summary", write_summary),
 ]

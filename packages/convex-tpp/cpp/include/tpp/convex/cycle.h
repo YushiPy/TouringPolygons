@@ -227,6 +227,22 @@ ConvexCycleResult tpp_convex_solve_cycle(const ConvexRationalPolygons &polygons,
     const ConvexCycleOptions &options = {});
 ConvexCycleResult tpp_convex_solve_cycle(const std::vector<std::vector<Vector2>> &polygons,
     const ConvexCycleOptions &options = {});
+// A cycle proposed in binary64 by another solver, one contact per polygon
+// (paper 1, Section 5.2: the exact baseline "Gurobi with our certificate").
+// Its descriptor is read as in Step 2 of Algorithm 4.3, rebuilt in rational
+// arithmetic, with the block descriptor, the straight passage and pivots at
+// vertices, and certified exactly. Optimal only when the exact certificate
+// passes; otherwise OracleFailure, and the proposal is not repaired.
+struct ConvexCycleProposalResult {
+    ConvexCycleStatus status = ConvexCycleStatus::OracleFailure;
+    ConvexRationalPolygon exact_contacts;
+    ConvexCycleCertificateResult certificate;
+    std::size_t rebuilds = 0;
+    std::string diagnostic;
+};
+ConvexCycleProposalResult tpp_convex_certify_cycle_proposal(
+    const std::vector<std::vector<Vector2>> &polygons,
+    const std::vector<Vector2> &contacts);
 ConvexCycleDoubleResult tpp_convex_solve_cycle_double(
     const std::vector<std::vector<Vector2>> &polygons,
     const ConvexCycleDoubleOptions &options = {});

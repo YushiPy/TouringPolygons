@@ -1013,6 +1013,103 @@ an option, off by default.
 Test: `step2_pivots_and_endpoint_certificate` in `tpp-convex-cycle-tests`
 (`uniform-0000015-2-k8`: Step 3 with neither, Step 2 with either).
 
+## Polygons with many vertices in the boundary search (2026-11-27)
+
+The referee of paper 1 asked for cycles through polygons with thousands of
+vertices (review 7, R5c). On rings of `k` polygons of `m=4096` and `m=32768`
+vertices (the hulls of `paths-fine`), the search above evaluated every piece
+end of the searched boundary, `O(m)` anchored TPPs, and its preparation was
+quadratic in `m`. Four changes remove both costs. None of them changes what is
+accepted: every cycle still passes the exact certificate.
+
+1. **Subgradient cuts** (`search_cycle` and `search_intersecting_boundaries`,
+   both arithmetics). If the anchored route at `x` has nonzero segments at
+   `x`, then `g = u_in - u_out` is a subgradient of `F_i` at `x`: by the
+   optimality conditions of the anchored TPP (Lemma 2.1 of paper 1), moving
+   the anchor to `y` changes the route length by at least `g.(y-x)`. So every
+   minimizer `y` has `g.(y-x) <= 0`. A piece whose two ends lie strictly
+   beyond that line holds no minimizer and is discarded; the side test is
+   `direction_support_sign`, exact without square roots. The next end to
+   evaluate is the middle of the longest run of ends still needed, so a cut
+   removes at least half of that run. The cut is skipped when a neighbouring
+   contact coincides with the anchor (a zero segment at `x`: `g` is then not
+   determined by the route). On disjoint polygons every route has nonzero
+   segments at its anchor, so the number of evaluated ends is logarithmic in
+   `m` whenever the cuts are not degenerate. Pieces that survive are searched
+   as before (closed-form step, bisection, simplest rational).
+2. **Splitting by a grid** (`split_edge`). The edges of the other polygons go
+   into a uniform grid of at most 4096 cells per side over the searched
+   polygon's bounding box, by their bounding boxes widened by a relative
+   margin; a stamp per edge removes duplicates. Only pairs whose widened boxes
+   meet are tested, and the tests themselves are the exact ones. Splitting
+   thus takes about linear time on the rings, where it tested every pair.
+3. **Eligibility in linear time** (`meets_interior`). Whether a neighbour
+   misses the interior of `P_i` is decided by separating lines. Rotating
+   calipers in binary64 give, for each edge of one polygon, a guess of the
+   other's vertex farthest to its left. A guess strictly to the left of the
+   edge line ends that test at once (exact orientation). Otherwise
+   `farthest_left` climbs from the guess to a strictly better neighbour,
+   crossing plateaus of equal value. Its comparisons are signs of cross
+   products, taken in binary64 when the value exceeds an a priori bound of
+   its rounding error (`8u` times the sum of the two products' sizes) and in
+   rational arithmetic otherwise. Along a convex polygon the signed distance
+   to a line is unimodal, so the climb ends at the exact extreme and the
+   guess only saves time. All decisions are exact, and the guesses advance
+   about `|P|+|Q|` steps in all. A first version compared in rationals
+   always; it made the 1638 cycles of paper 1 about 17% slower (tolerant,
+   geometric mean), and the filter brings them back to the earlier times.
+4. **Common point by linear programming** (`common_region`, Step 1). The
+   regions were clipped one by another, quadratic in `m`. Now Seidel's
+   randomized incremental linear program in rational arithmetic finds a
+   point common to all regions or reports that there is none. Its halfplanes
+   are the edges of every polygon, the line and the two ends of a segment,
+   the coordinates of a point, plus a bounding box; the objective is the
+   lexicographic maximum of `(x, y)`, so the optimum is unique. The order is
+   random with a fixed seed (20261127), so runs are reproducible, and the
+   expected time is linear in the number of halfplanes. The binary64
+   intersection that runs first records the regions after which it became
+   empty; the program runs on those regions alone first, and on all of them
+   only when they have a common point. This changes the time, not the answer.
+
+Rational block proposals (`move_zero_blocks`) also use the binary64
+`intersect_convex` of the previous section, through the `proposal` argument
+of `CycleRefinement::intersect`. Its region only proposes contacts, which are
+rebuilt and certified exactly afterwards.
+
+On the Mac, one repetition per instance, `k` polygons of `m` vertices each,
+one seed (s0, `benchmarks/workspace/experiments/r5-baseline/`):
+
+| ring | exact | tolerant (`1e-6`) | Gurobi | Gurobi + certificate |
+|---|---|---|---|---|
+| disjoint, k=8, m=4096 | 0.017 s | 0.004 s | 0.21 s | 0.24 s, certified |
+| intersecting, k=8, m=4096 | 1.10 s | 0.33 s | 0.20 s | not certified |
+| disjoint, k=64, m=4096 | 0.31 s | 0.05 s | 1.64 s | 1.89 s, certified |
+| intersecting, k=64, m=4096 | 4.75 s | 3.3 s | 1.75 s | 2.06 s, certified |
+| disjoint, k=16, m=32768 | 0.26 s | 0.05 s | 9.0 s | not certified |
+| intersecting, k=16, m=32768 | 4.3 s | 3.4 s | 7.7 s | not certified |
+
+On intersecting rings what remains is the binary64 construction of each
+anchored TPP, linear or worse in the vertices it crosses, times the number of
+pieces that survive the cuts.
+
+**Gurobi with the exact certificate** (`tpp_convex_certify_cycle_proposal`,
+`cycle.h`). This is the exact baseline of review 7 (R5b): Gurobi's points are
+taken as a proposal. For each anchor, the local descriptor of the cycle at
+those points is rebuilt in rational arithmetic (`DescriptorRebuilds` with the
+block descriptor, the straight step and pivots) and sent to the exact
+certificate. The status is `Optimal` only when a rebuilt cycle passes it;
+otherwise Gurobi's answer stays uncertified (the table's "not certified").
+`tpp-convex-cycle-sequences` reports it in exact runs as `gurobi.certified`
+(status, seconds, mean over repetitions of 0.05 s, calls, rebuilds, upper
+bound), and `benchmarks/tpp.py paper1-experiments` summarizes it as
+`gurobi_certified`.
+
+The steps `cycles-large` and `cycles-large-tolerant` of `paper1-experiments`
+(profiles `paper` and `cycles`) run the rings: disjoint `k = 4..64`,
+intersecting `k = 8..64` (`k >= 8` leaves no common point), `m = 64, 512,
+4096, 32768`, three seeds, centers 2.4 apart without radial shift (disjoint)
+or 1.1 apart with a radial shift up to 0.3 (intersecting).
+
 ## Exact termination
 
 There are finitely many combinatorial types of anchored paths. Intersection
@@ -1106,10 +1203,11 @@ height of a minimizer for a searched segment. Convexity/winding validation is
 checks test only the pairs of edges that the linear-time contact routine of
 [convex_contacts.h](../../packages/convex-tpp/cpp/include/tpp/convex/detail/convex_contacts.h)
 lists, `O(kN)` pairs in all. Before 2026-11-17 they tested all pairs of edges,
-in `O(N^2)` operations. The cycle search still cuts its anchor segments by
-testing each edge of the searched polygon against every edge of the others
-(`search_intersecting_boundaries`), `O(N^2)` operations that the search below
-dominates, and convexity gives `A=O(kN)`.
+in `O(N^2)` operations. The cycle search cuts its anchor segments with a grid
+of bounding boxes ([above](#polygons-with-many-vertices-in-the-boundary-search-2026-11-27));
+in the worst case every box meets every cell and this is still `O(N^2)`
+operations, which the search below dominates, and convexity gives `A=O(kN)`.
+The subgradient cuts do not change these worst-case bounds.
 
 For the maintained intersecting fixed-source map, use the bound
 `C=O(k^2*N*log(kN))` and `O(kN)` stored values; see

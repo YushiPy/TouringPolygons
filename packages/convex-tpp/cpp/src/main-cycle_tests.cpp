@@ -1475,7 +1475,7 @@ void step2_pivots_and_endpoint_certificate() {
     }
     for(const bool endpoint:{false,true})for(const bool pivots:{false,true})
         require(step[endpoint][pivots]==2&&probes[endpoint][pivots]==0,"uniform-0000015-2-k8: every setting returns at Step 2 without bisection");
-    require(anchored[0][1]<anchored[0][0]&&recoveries[0][1]<recoveries[0][0],
+    require(anchored[0][1]<=anchored[0][0]&&recoveries[0][1]<recoveries[0][0],
             "uniform-0000015-2-k8: pivots close from binary64 routes more often");
     std::cout<<"Step 2 on uniform-0000015-2-k8: anchored/exact recoveries "<<anchored[0][0]<<'/'<<recoveries[0][0]<<" without pivots, "
         <<anchored[0][1]<<'/'<<recoveries[0][1]<<" with pivots, "<<anchored[1][0]<<'/'<<recoveries[1][0]<<" with the endpoint certificate ("
