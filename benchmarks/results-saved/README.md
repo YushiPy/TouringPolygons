@@ -87,7 +87,7 @@ Substitui `paper1-dantzig-a894978-2026-11-27` no artigo.
 - Dois anéis intersectantes com m=32768 levaram 202 s (k=8, s1) e 240 s
   (k=32, s2) no modo exato: 72 e 50 recuperações racionais (TPPs ancorados
   exatos quando a construção em binary64 falha), cerca de 3 s cada. O modo
-  tolerante fecha os mesmos anéis em 1,4 e 5,4 s.
+  tolerante fecha os mesmos anéis em 1,4 e 1,2 s.
 - A linha base certificada falha quando nenhum descritor reconstruído a partir
   dos pontos do Gurobi passa no certificado; nos anéis com m=32768 isso
   acontece em 18 de 27, e a tentativa custa até 91 s.
