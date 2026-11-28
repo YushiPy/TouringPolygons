@@ -8,6 +8,7 @@ Pastas com dados:
 
 | Pasta | Conteúdo |
 |---|---|
+| [paper1-dantzig-4a8e7fc-2026-11-27](paper1-dantzig-4a8e7fc-2026-11-27/summary.json) | Tudo o que o artigo 1 usa, na dantzig, com os cortes por subgradiente na busca da fronteira (4a8e7fc), a linha base exata "Gurobi + certificado" e os anéis grandes (`cycles-large`, `cycles-large-tolerant`; até k=64 e m=32768). Tabelas por instância dos anéis em [`cycles-large-per-instance.csv`](paper1-dantzig-4a8e7fc-2026-11-27/cycles-large-per-instance.csv) e [`cycles-large-tolerant-per-instance.csv`](paper1-dantzig-4a8e7fc-2026-11-27/cycles-large-tolerant-per-instance.csv); resumo [abaixo](#paper1-dantzig-4a8e7fc-2026-11-27). |
 | [paper1-dantzig-3df4d85-2026-11-18](paper1-dantzig-3df4d85-2026-11-18/summary.json) | Tudo o que o artigo 1 usa, numa só revisão e numa só máquina, na dantzig (`--profile paper`, que desde 3df4d85 inclui a tabela de muitos vértices, a escala e as três construções com interseções): caminhos gerados, grade fina e construções, muitos vértices, fallback racional e construções exatas, muitos alvos, propostas, os 1638 ciclos nos modos exato e tolerante e a escala. Medianas por instância em [`paths-random-per-instance.csv`](paper1-dantzig-3df4d85-2026-11-18/paths-random-per-instance.csv), [`paths-fine-per-instance.csv`](paper1-dantzig-3df4d85-2026-11-18/paths-fine-per-instance.csv), [`vertex-scaling-fine-per-run.csv`](paper1-dantzig-3df4d85-2026-11-18/vertex-scaling-fine-per-run.csv), [`cycles-per-instance.csv`](paper1-dantzig-3df4d85-2026-11-18/cycles-per-instance.csv), [`cycles-tolerant-per-instance.csv`](paper1-dantzig-3df4d85-2026-11-18/cycles-tolerant-per-instance.csv) e [`paths-scaling-per-instance.csv`](paper1-dantzig-3df4d85-2026-11-18/paths-scaling-per-instance.csv); resumo [abaixo](#paper1-dantzig-3df4d85-2026-11-18). |
 | [paper1-armijo-0ca26ed-2026-11-16](paper1-armijo-0ca26ed-2026-11-16/summary.json) | Tudo o que o artigo 1 usa, numa só revisão na armijo (`--profile paper`), depois do raio único estrutural, da partição da virada e do Algoritmo 4.1 com tolerância juntado à main: caminhos gerados, grade fina e construções, fallback racional, muitos alvos, propostas e os 1638 ciclos nos modos exato e tolerante. Medianas por instância em [`paths-random-per-instance.csv`](paper1-armijo-0ca26ed-2026-11-16/paths-random-per-instance.csv), [`paths-fine-per-instance.csv`](paper1-armijo-0ca26ed-2026-11-16/paths-fine-per-instance.csv), [`cycles-per-instance.csv`](paper1-armijo-0ca26ed-2026-11-16/cycles-per-instance.csv) e [`cycles-tolerant-per-instance.csv`](paper1-armijo-0ca26ed-2026-11-16/cycles-tolerant-per-instance.csv); resumo [abaixo](#paper1-armijo-0ca26ed-2026-11-16). |
 | [paper1-armijo-ea57cc9-2026-11-10](paper1-armijo-ea57cc9-2026-11-10/summary.json) | Os 1638 ciclos do artigo 1 com o Algoritmo 4.1 em dois modos, na armijo (`--profile cycles`): exato (gap zero) e com a tolerância do Gurobi (gap 1e-6 vezes o perímetro), em binary64 primeiro e sem varreduras. Medianas por instância em [`cycles-per-instance.csv`](paper1-armijo-ea57cc9-2026-11-10/cycles-per-instance.csv) e [`cycles-tolerant-per-instance.csv`](paper1-armijo-ea57cc9-2026-11-10/cycles-tolerant-per-instance.csv); resumo [abaixo](#paper1-armijo-ea57cc9-2026-11-10). |
@@ -34,6 +35,63 @@ status de exatidão e limitações. Um gap numérico fechado nos B&B não é ót
 algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
+
+## paper1-dantzig-4a8e7fc-2026-11-27
+
+**Pergunta.** Os pedidos R5b (linha base exata) e R5c (CTPP com muitos
+vértices) da revisão 7, depois dos cortes por subgradiente, da divisão por
+grade, da elegibilidade linear e do ponto comum por programa linear
+([convex-cycle.md](../../docs/algorithms/convex-cycle.md#polygons-with-many-vertices-in-the-boundary-search-2026-11-27)).
+Substitui `paper1-dantzig-a894978-2026-11-27` no artigo.
+
+**Formulação.**
+- `python3 benchmarks/tpp.py paper1-experiments --profile paper --workers 8`
+  na dantzig (i9-12900K, 126 GB), commit 4a8e7fc (main, árvore limpa), das
+  20h51 às 22h19 de 27/11. Carga no início 1,23 (3,54 e 4,26 em 5 e 15 min).
+- Gurobi com parâmetros padrão, uma thread; modo exato com gap zero, modo
+  tolerante com gap `1e-6` vezes o perímetro de referência.
+- **Linha base certificada** (só no modo exato): os pontos do Gurobi
+  reconstruídos em racionais e enviados ao certificado exato
+  (`tpp_convex_certify_cycle_proposal`). O tempo é o do Gurobi mais o da
+  certificação.
+- **Anéis grandes:** k polígonos de m vértices (cascos de pontos numa elipse,
+  grade 2^-30) num anel em ordem cíclica; disjuntos k = 4, 8, 16, 32, 64
+  (centros a 2,4); intersectantes k = 8, 16, 32, 64 (centros a 1,1, desvio
+  radial até 0,3); m = 64, 512, 4096, 32768; 3 sementes; 108 anéis, 3
+  repetições.
+
+**Resultados.**
+- **Corpus (1638 ciclos):** status e cotas exatas idênticos aos de a894978,
+  nos dois modos; tempos iguais (média geométrica 1,02 exato, 1,01
+  tolerante, rodadas separadas). Gurobi/nosso 7,5× (exato), 37,8×
+  (tolerante).
+- **Linha base certificada no corpus:** certifica 1561 de 1638 ciclos (95%);
+  a certificação custa 0,09 ms na mediana; (Gurobi + certificado)/nosso = 8,8×
+  nos certificados, e ela é mais rápida em 23.
+- **Anéis grandes:** os 108 fecham nos dois modos (exato: 16 `Optimal`, 92
+  `FloatingPointLimit` com contatos exatos certificados; tolerante: 108
+  `GapClosed`), todos no Passo 2, sem bissecção. TPPs ancorados: mediana 6,
+  máximo 80.
+
+  | grupo | nosso exato | nosso tolerante | Gurobi | Gurobi/exato | Gurobi/tolerante | certificados |
+  |---|---|---|---|---|---|---|
+  | disjuntos, m=32768 | 0,35 s | 0,10 s | 10,8 s | 17,7× | 63,6× | 5/15 |
+  | disjuntos, todos | — | — | — | 6,9–11× por k | 30–56× por k | 45/60 |
+  | intersectantes, m=32768 | 7,2 s | 1,3 s | 15,9 s | 1,55× | 9,7× | 4/12 |
+  | intersectantes, todos | — | — | — | 0,42–2,4× por k | 4,0–4,7× por k | 39/48 |
+
+  Tempos são medianas por instância e depois por grupo; as razões são médias
+  geométricas.
+
+**Limitações.**
+- Dois anéis intersectantes com m=32768 levaram 202 s (k=8, s1) e 240 s
+  (k=32, s2) no modo exato: 72 e 50 recuperações racionais (TPPs ancorados
+  exatos quando a construção em binary64 falha), cerca de 3 s cada. O modo
+  tolerante fecha os mesmos anéis em 1,4 e 5,4 s.
+- A linha base certificada falha quando nenhum descritor reconstruído a partir
+  dos pontos do Gurobi passa no certificado; nos anéis com m=32768 isso
+  acontece em 18 de 27, e a tentativa custa até 91 s.
+- Uma repetição por bloco de 0,05 s; a máquina é compartilhada.
 
 ## paper1-dantzig-3df4d85-2026-11-18
 
