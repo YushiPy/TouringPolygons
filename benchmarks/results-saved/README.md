@@ -8,6 +8,7 @@ Pastas com dados:
 
 | Pasta | Conteúdo |
 |---|---|
+| [paper1-dantzig-51e8790-2026-11-28](paper1-dantzig-51e8790-2026-11-28/summary.json) | Tudo o que o artigo 1 usa, na dantzig, depois da correção das âncoras em vértices dentro de outros polígonos (51e8790); substitui a 4a8e7fc no artigo. Mesmos arquivos; resumo [abaixo](#paper1-dantzig-51e8790-2026-11-28). |
 | [paper1-dantzig-4a8e7fc-2026-11-27](paper1-dantzig-4a8e7fc-2026-11-27/summary.json) | Tudo o que o artigo 1 usa, na dantzig, com os cortes por subgradiente na busca da fronteira (4a8e7fc), a linha base exata "Gurobi + certificado" e os anéis grandes (`cycles-large`, `cycles-large-tolerant`; até k=64 e m=32768). Tabelas por instância dos anéis em [`cycles-large-per-instance.csv`](paper1-dantzig-4a8e7fc-2026-11-27/cycles-large-per-instance.csv) e [`cycles-large-tolerant-per-instance.csv`](paper1-dantzig-4a8e7fc-2026-11-27/cycles-large-tolerant-per-instance.csv); resumo [abaixo](#paper1-dantzig-4a8e7fc-2026-11-27). |
 | [paper1-dantzig-3df4d85-2026-11-18](paper1-dantzig-3df4d85-2026-11-18/summary.json) | Tudo o que o artigo 1 usa, numa só revisão e numa só máquina, na dantzig (`--profile paper`, que desde 3df4d85 inclui a tabela de muitos vértices, a escala e as três construções com interseções): caminhos gerados, grade fina e construções, muitos vértices, fallback racional e construções exatas, muitos alvos, propostas, os 1638 ciclos nos modos exato e tolerante e a escala. Medianas por instância em [`paths-random-per-instance.csv`](paper1-dantzig-3df4d85-2026-11-18/paths-random-per-instance.csv), [`paths-fine-per-instance.csv`](paper1-dantzig-3df4d85-2026-11-18/paths-fine-per-instance.csv), [`vertex-scaling-fine-per-run.csv`](paper1-dantzig-3df4d85-2026-11-18/vertex-scaling-fine-per-run.csv), [`cycles-per-instance.csv`](paper1-dantzig-3df4d85-2026-11-18/cycles-per-instance.csv), [`cycles-tolerant-per-instance.csv`](paper1-dantzig-3df4d85-2026-11-18/cycles-tolerant-per-instance.csv) e [`paths-scaling-per-instance.csv`](paper1-dantzig-3df4d85-2026-11-18/paths-scaling-per-instance.csv); resumo [abaixo](#paper1-dantzig-3df4d85-2026-11-18). |
 | [paper1-armijo-0ca26ed-2026-11-16](paper1-armijo-0ca26ed-2026-11-16/summary.json) | Tudo o que o artigo 1 usa, numa só revisão na armijo (`--profile paper`), depois do raio único estrutural, da partição da virada e do Algoritmo 4.1 com tolerância juntado à main: caminhos gerados, grade fina e construções, fallback racional, muitos alvos, propostas e os 1638 ciclos nos modos exato e tolerante. Medianas por instância em [`paths-random-per-instance.csv`](paper1-armijo-0ca26ed-2026-11-16/paths-random-per-instance.csv), [`paths-fine-per-instance.csv`](paper1-armijo-0ca26ed-2026-11-16/paths-fine-per-instance.csv), [`cycles-per-instance.csv`](paper1-armijo-0ca26ed-2026-11-16/cycles-per-instance.csv) e [`cycles-tolerant-per-instance.csv`](paper1-armijo-0ca26ed-2026-11-16/cycles-tolerant-per-instance.csv); resumo [abaixo](#paper1-armijo-0ca26ed-2026-11-16). |
@@ -35,6 +36,37 @@ status de exatidão e limitações. Um gap numérico fechado nos B&B não é ót
 algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
+
+## paper1-dantzig-51e8790-2026-11-28
+
+**Pergunta.** A rodada de 4a8e7fc com a correção de 51e8790: em Step 2, um
+vértice da âncora no interior de todos os outros polígonos que o contêm é
+decidido pelos sinais nas suas arestas (sem TPP ancorado exato), e o corte por
+subgradiente vale ali também (Lema 4.3 generalizado). Substitui
+`paper1-dantzig-4a8e7fc-2026-11-27` no artigo.
+
+**Formulação.** A mesma de 4a8e7fc: `python3 benchmarks/tpp.py
+paper1-experiments --profile paper --workers 8` na dantzig, commit 51e8790
+(main, árvore limpa), das 23h33 de 27/11 à 0h51 de 28/11, carga inicial 1,24
+(3,89 e 4,99).
+
+**Resultados.**
+- **Ótimos exatos idênticos** aos de 4a8e7fc em todos os 1638 ciclos do corpus
+  e nos 108 anéis grandes. Os caminhos não mudaram (diferenças só de tempo).
+- **Corpus:** Gurobi/nosso 7,55× (exato) e 37,6× (tolerante); nosso exato mais
+  rápido em 1602 ciclos (1591 antes); recuperações racionais 282 em 120 ciclos
+  (311 em 130 antes).
+- **Anéis grandes:** etapa `cycles-large` de 1164 s para 560 s. Recuperações
+  racionais 3 (170 antes); no máximo 24 TPPs ancorados (80 antes). O exato é
+  mais rápido que o Gurobi em 102 dos 108 anéis: 60/60 disjuntos e 42/48
+  intersectantes, 1,6× a 5,3× por m nos intersectantes (0,98× a 1,55× antes).
+  O mais lento leva 17,4 s (intersectante, k=64, m=32768) contra 47 s do
+  Gurobi. Os dois anéis de 202 e 240 s caíram para menos de 3 s.
+- **Gurobi + certificado:** igual (84/108 certificados; 9 de 27 com m=32768),
+  5,4× o tempo do nosso exato nos certificados.
+
+**Limitações.** As de 4a8e7fc, menos os anéis lentos. Os tempos do Gurobi nos
+anéis variam até 29% entre as rodadas dos dois modos.
 
 ## paper1-dantzig-4a8e7fc-2026-11-27
 
