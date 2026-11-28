@@ -1032,8 +1032,13 @@ accepted: every cycle still passes the exact certificate.
    `direction_support_sign`, exact without square roots. The next end to
    evaluate is the middle of the longest run of ends still needed, so a cut
    removes at least half of that run. The cut is skipped when a neighbouring
-   contact coincides with the anchor (a zero segment at `x`: `g` is then not
-   determined by the route). On disjoint polygons every route has nonzero
+   contact coincides with the anchor and that contact's polygon has `x` on
+   its boundary. When every polygon visited at `x` contains `x` in its
+   interior, `u_in` and `u_out` are taken from the last nonzero segment
+   before `x` and the first one after it: the route through the nearest other
+   visit points bounds `F_i` from above near `x` and touches it at `x`, so
+   `F_i` is differentiable there with that gradient (the argument of Lemma 4.2
+   of paper 1 in the plane), and the gradient inequality gives the cut. On disjoint polygons every route has nonzero
    segments at its anchor, so the number of evaluated ends is logarithmic in
    `m` whenever the cuts are not degenerate. Pieces that survive are searched
    as before (closed-form step, bisection, simplest rational).
@@ -1091,6 +1096,28 @@ one seed (s0, `benchmarks/workspace/experiments/r5-baseline/`):
 On intersecting rings what remains is the binary64 construction of each
 anchored TPP, linear or worse in the vertices it crosses, times the number of
 pieces that survive the cuts.
+
+**Vertex anchors inside other polygons (2026-11-28).** On the dantzig run of
+4a8e7fc, two intersecting rings with `m=32768` took 202 and 240 s in the exact
+mode: 72 and 50 anchored TPPs solved again in rational arithmetic, all at
+vertices of the anchor polygon lying inside a neighbouring polygon. Step 2
+rebuilt such a vertex as a possible minimizer whatever the signs along its
+edges, because `F` need not be differentiable where membership changes, and
+fell back to the exact TPP when the rebuild failed. Membership changes only on
+the boundary of another polygon. A vertex in the interior of every other
+polygon that contains it is now tested by the signs along its two edges, with
+the nonzero segments next to the anchor (same differentiability argument as
+the cut above), and the cut is made there too. The two rings now take 0.72 and
+2.0 s (Mac), with 15 and 5 anchored TPPs and the same exact optimum; Gurobi
+took 4.7 and 22 s on dantzig. On the 1638 cycles of paper 1 the exact bounds are
+identical and the time is unchanged (geometric mean 1.00, the two binaries
+alternated on the Mac), but the anchored TPPs grow from 5594 to 6352: the
+binary64 rebuild at a vertex inside another polygon, now skipped when the
+signs rule the vertex out, sometimes closed the optimum through the block
+descriptor although the vertex was no minimizer. Keeping that rebuild but not
+the exact TPP after it restores the count (5673) and the corpus time, but the
+two rings then take 9.8 and 7.1 s, since each failed rebuild runs the exact
+certificate on polygons of 32768 vertices.
 
 **Gurobi with the exact certificate** (`tpp_convex_certify_cycle_proposal`,
 `cycle.h`). This is the exact baseline of review 7 (R5b): Gurobi's points are

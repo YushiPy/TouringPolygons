@@ -1223,11 +1223,23 @@ void search_intersecting_boundaries(const std::vector<std::vector<ConvexArithmet
             const auto b=piece_before(v),a=piece_after(v);
             return (b&&alive[*b])||(a&&alive[*a]);
         };
-        // Subgradient cuts (paper 1, Lemma 4.3), when the anchored route has
-        // nonzero segments at its anchor: every minimizer y has
-        // (u_in - u_out).(y - x) <= 0, and a piece whose two ends lie strictly
-        // beyond is discarded. The next end is the middle of the longest run
-        // of ends still needed, so each cut removes at least half of it.
+        // Subgradient cuts (paper 1, Lemma 4.3): with u_in and u_out the
+        // last nonzero segment before the anchor x and the first one after it,
+        // every minimizer y has (u_in - u_out).(y - x) <= 0 when every other
+        // polygon visited at x contains x in its interior (in particular when
+        // none is), and a piece whose two ends lie strictly beyond is
+        // discarded. The next end is the middle of the longest run of ends
+        // still needed, so each cut removes at least half of it.
+        auto strictly_inside=[&](const P &x,const Polygon &r) {
+            const size_t n=r.size();
+            if(n<3)return false; // a point or a segment has no interior
+            for(size_t e=0;e<n;++e) {
+                if constexpr(std::is_same_v<S,double>) {
+                    if(exact_orientation(r[e].external(),r[(e+1)%n].external(),x.external())<=0)return false;
+                } else if((r[(e+1)%n]-r[e]).cross(x-r[e])<=0)return false;
+            }
+            return true;
+        };
         for(;;) {
             detail::cycle_checkpoint();
             size_t best_start=0,best_length=0;
@@ -1247,11 +1259,16 @@ void search_intersecting_boundaries(const std::vector<std::vector<ConvexArithmet
             const Polygon &q=routes[v];
             if(q.empty())continue;
             const P x=points[v].point;
-            const size_t before=(anchor+k-1)%k,after=(anchor+1)%k;
-            if(q[before]==q[anchor]||q[after]==q[anchor])continue;
+            size_t before=(anchor+k-1)%k,after=(anchor+1)%k;
+            while(after!=anchor&&q[after]==x)after=(after+1)%k;
+            while(before!=anchor&&q[before]==x)before=(before+k-1)%k;
+            if(after==anchor||before==anchor)continue;
+            bool interior=true;
+            for(size_t i=0;i<k&&interior;++i)if(i!=anchor&&q[i]==x)interior=strictly_inside(x,p[i]);
+            if(!interior)continue;
             try {
                 std::vector<int> side(n_points);
-                for(size_t w=0;w<n_points;++w)side[w]=w==v||points[w].point==x?0:direction_support_sign(q[anchor]-q[before],q[after]-q[anchor],points[w].point-x);
+                for(size_t w=0;w<n_points;++w)side[w]=w==v||points[w].point==x?0:direction_support_sign(x-q[before],q[after]-x,points[w].point-x);
                 for(size_t c=0;c<n_pieces;++c)if(alive[c]&&side[c]>0&&side[(c+1)%n_points]>0)alive[c]=0;
             } catch(const std::runtime_error &){}
         }
@@ -1682,14 +1699,34 @@ ConvexCycleDoubleResult solve_cycle_double_exact(ConvexCycleDoubleResult &result
             // other polygon (F is then differentiable along both edges near
             // it) and F decreases along one of them.
             if(const auto j=vertex_at(p[anchor],x)) {
+                // F need not be differentiable at a vertex on the boundary of
+                // another polygon, where membership changes. A vertex in the
+                // interior of every other polygon that contains it is tested
+                // by the signs along its two edges, with the last nonzero
+                // segment before it and the first one after it: the
+                // polygons visited at x then contain a neighborhood of x, so
+                // the route through the nearest other visit points bounds F
+                // from above near x and touches it at x, and F is
+                // differentiable there with gradient u_in - u_out (the
+                // argument of Lemma 4.2 in the plane).
                 bool candidate=false;
-                for(size_t i=0;i<k&&!candidate;++i)candidate=i!=anchor&&Kernel::inside(x,p[i]);
+                for(size_t i=0;i<k&&!candidate;++i) {
+                    if(i==anchor||!Kernel::inside(x,p[i]))continue;
+                    const auto &r=p[i];const size_t n=r.size();
+                    if(n<3){candidate=true;break;} // a point or a segment has no interior
+                    for(size_t e=0;e<n&&!candidate;++e)candidate=exact_orientation(r[e].external(),r[(e+1)%n].external(),x.external())<=0;
+                }
                 if(!candidate) {
                     const auto &a=p[anchor];const size_t m=a.size();
+                    size_t after=1,before=1;
+                    while(after<k&&q[(anchor+after)%k]==x)++after;
+                    while(before<k&&q[(anchor+k-before)%k]==x)++before;
                     int forward=0,backward=0;
                     try {
-                        forward=support_sign(q,anchor,a[(*j+1)%m]-a[*j]);
-                        backward=support_sign(q,anchor,a[*j]-a[(*j+m-1)%m]);
+                        if(after==k||before==k)throw std::runtime_error("No nonzero segment at the anchor");
+                        const auto in=x-q[(anchor+k-before)%k],out=q[(anchor+after)%k]-x;
+                        forward=direction_support_sign(in,out,a[(*j+1)%m]-a[*j]);
+                        backward=direction_support_sign(in,out,a[*j]-a[(*j+m-1)%m]);
                     } catch(const std::runtime_error &) {forward=backward=0;}
                     candidate=forward>=0&&backward<=0;
                 }
